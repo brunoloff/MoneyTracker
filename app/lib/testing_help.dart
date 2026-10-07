@@ -28,6 +28,7 @@ String credentialStoreGuidance(TargetPlatform platform) => switch (platform) {
 Future<void> showTestingHelp(BuildContext context) => showDialog<void>(
   context: context,
   builder: (context) => AlertDialog(
+    constraints: const BoxConstraints(maxWidth: 568),
     title: const Text('Testing help'),
     scrollable: true,
     content: Column(
