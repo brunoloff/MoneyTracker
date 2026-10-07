@@ -4,6 +4,11 @@ A Flutter personal finance dashboard backed by your local bank connection.
 
 Implemented: aggregated payments, category bar chart, month/salary periods, search and account/category/direction filters, editable categories, salary marking, sync, and reversible merging with source provenance.
 
+Public source: [brunoloff/MoneyTracker](https://github.com/brunoloff/MoneyTracker).
+The [Desktop packages workflow](https://github.com/brunoloff/MoneyTracker/actions/workflows/desktop.yml)
+builds and tests Windows and Linux archives. See [publication notes](docs/PUBLICATION.md)
+for the source exclusions and packaged startup check.
+
 ## Run the desktop app
 
 MoneyTracker now runs as a standalone Flutter/Dart application on Linux and
