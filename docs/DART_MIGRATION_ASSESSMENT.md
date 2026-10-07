@@ -2,7 +2,7 @@
 
 Assessment date: 7 October 2026.
 
-Implementation update: the native Dart service, personal-key setup, legacy data import, and Linux desktop package have now been implemented. The original assessment below is retained as the design record; see the root README for current build and migration instructions. Windows execution and live bank authorization still require validation.
+Implementation update: the native Dart service, personal-key setup, legacy data import, and desktop packages have now been implemented. Windows and Linux builds passed core and Flutter tests in [GitHub Actions](https://github.com/brunoloff/MoneyTracker/actions/runs/37651785640); the extracted Windows package also passed native startup, storage initialization, and clean-close checks. Public downloads are in the [1.0.0 desktop preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.0). The original assessment below is retained as the design record; see the root README for current instructions. Live bank authorization and interactive use on recipients' Windows computers still require validation.
 
 MoneyTracker can move its local backend into Dart and run as a Flutter desktop application on Windows and Linux. No fundamental language or library obstacle was identified for personal desktop use. The migration is a substantial backend rewrite, with most of the risk in preserving saved data and behaviour rather than building the interface. Bank authentication, local HTTPS, and access to the existing undo database passed isolated feasibility checks on Linux. Windows integration and live bank authorisation remain acceptance requirements.
 

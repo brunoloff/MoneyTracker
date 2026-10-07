@@ -43,6 +43,12 @@ Successful runs expose archives under Actions → Desktop packages → Artifacts
 Public release downloads, when published, are at:
 https://github.com/brunoloff/MoneyTracker/releases
 
+The first verified release is the [1.0.0 desktop preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.0),
+built from commit `c9e9544df4102e0bcf8ac4bc76020fc47bfefa47` in
+[run 37651785640](https://github.com/brunoloff/MoneyTracker/actions/runs/37651785640).
+Both platforms passed 288 core tests and 68 Flutter tests, and Windows passed
+the extracted-package startup check. The public downloads include checksums.
+
 Extract the entire Windows ZIP and run `money_tracker.exe`; keep all companion
 DLLs and the `data/` directory beside it. Each recipient supplies their own
 Enable Banking application and key through the app's setup screen.
