@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'bank_connection.dart';
 import 'ledger.dart';
+import 'testing_help.dart';
 
 const bankingCallback = 'https://localhost:8443/callback';
 
@@ -181,7 +182,16 @@ class _SetupPageState extends State<SetupPage> {
   );
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Set up MoneyTracker')),
+    appBar: AppBar(
+      title: const Text('Set up MoneyTracker'),
+      actions: [
+        IconButton(
+          tooltip: 'Testing help',
+          onPressed: () => showTestingHelp(context),
+          icon: const Icon(Icons.help_outline),
+        ),
+      ],
+    ),
     body: Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(

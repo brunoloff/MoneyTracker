@@ -42,17 +42,18 @@ jobs:
           flutter test --concurrency=1
       - name: Desktop build
         working-directory: app
-        run: flutter build ${{ matrix.target }} --release
+        run: flutter build ${{ matrix.target }} --release --dart-define=MONEYTRACKER_BUILD_REVISION=${{ github.sha }}
       - name: Linux archive
         if: runner.os == 'Linux'
         run: |
-          cp packaging/README.txt packaging/moneytracker.svg app/build/linux/x64/release/bundle/
+          cp packaging/README.txt packaging/TESTING.txt packaging/moneytracker.svg app/build/linux/x64/release/bundle/
           tar -C app/build/linux/x64/release/bundle -czf MoneyTracker-linux-x64.tar.gz .
       - name: Windows archive
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           Copy-Item packaging/README.txt app/build/windows/x64/runner/Release/
+          Copy-Item packaging/TESTING.txt app/build/windows/x64/runner/Release/
           Compress-Archive -Path app/build/windows/x64/runner/Release/* -DestinationPath MoneyTracker-windows-x64.zip
       - name: Windows packaged startup smoke test
         if: runner.os == 'Windows'

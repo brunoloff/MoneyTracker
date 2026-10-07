@@ -6,6 +6,7 @@ import 'dashboard.dart';
 import 'dart:convert';
 import 'platform/runtime.dart';
 import 'setup_page.dart';
+import 'testing_help.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -111,6 +112,12 @@ class _MoneyTrackerAppState extends State<MoneyTrackerApp> {
                         FilledButton(
                           onPressed: start,
                           child: const Text('Retry'),
+                        ),
+                        Builder(
+                          builder: (context) => TextButton(
+                            onPressed: () => showTestingHelp(context),
+                            child: const Text('Testing help'),
+                          ),
                         ),
                       ],
                     ],

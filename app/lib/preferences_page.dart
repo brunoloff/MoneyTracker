@@ -5,6 +5,7 @@ import 'taxonomy_settings.dart';
 import 'bank_connection.dart';
 import 'setup_page.dart';
 import 'spreadsheet_import.dart';
+import 'testing_help.dart';
 
 class PreferencesPage extends StatefulWidget {
   final Ledger ledger;
@@ -73,6 +74,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
     'Categories & tags',
     'Payment matching',
     'Undo history',
+    'Testing help',
   ];
   Widget _navigation(bool wide) {
     final buttons = [
@@ -122,7 +124,12 @@ class _PreferencesPageState extends State<PreferencesPage> {
                 2 => _section2(),
                 3 => _section3(),
                 4 => _matching(),
-                _ => _undoSettings(),
+                5 => _undoSettings(),
+                _ => TextButton.icon(
+                  onPressed: () => showTestingHelp(context),
+                  icon: const Icon(Icons.help_outline),
+                  label: const Text('Open testing help'),
+                ),
               },
             ),
         ],

@@ -15,6 +15,11 @@ from the [1.0.0 desktop preview](https://github.com/brunoloff/MoneyTracker/relea
 Extract the entire archive; on Windows, run `money_tracker.exe`. No GitHub account
 is needed to download these public release files.
 
+For a first test, follow [the friend-testing checklist](packaging/TESTING.txt).
+Testing help in setup, Preferences, and startup errors includes a copyable
+version/build/platform summary. It does not collect bank data or credentials.
+Arrange each person's own Enable Banking application and key before meeting.
+
 ## Run the desktop app
 
 MoneyTracker now runs as a standalone Flutter/Dart application on Linux and

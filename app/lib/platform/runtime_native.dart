@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:money_tracker_core/money_tracker_core.dart';
 import 'runtime_types.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import '../testing_help.dart';
 
 Future<AppRuntime> createRuntime() async {
   final override = Platform.environment['MONEYTRACKER_DATA_DIR'];
@@ -32,9 +34,7 @@ Future<AppRuntime> createRuntime() async {
     }
     key = base64Decode(value);
   } catch (_) {
-    throw StateError(
-      'MoneyTracker could not unlock the system credential store. On Linux, unlock your desktop keyring (GNOME Keyring or KDE Wallet), then retry.',
-    );
+    throw StateError(credentialStoreGuidance(defaultTargetPlatform));
   }
   final ready = ReceivePort(), errors = ReceivePort();
   final isolate = await Isolate.spawn(

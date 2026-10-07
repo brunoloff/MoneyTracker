@@ -1,0 +1,28 @@
+MoneyTracker — first test
+
+Before meeting: download and extract the ENTIRE archive. On Windows, launch
+money_tracker.exe. Keep its companion DLLs and data directory together.
+Your friend needs their own Enable Banking login, application and PEM key.
+Follow the setup screen to register the callback and verify their credentials.
+Allow time for provider registration and bank authorization before the session.
+
+Try this sequence:
+1. Start with the friend's own setup; do not send them your data folder or key.
+2. Connect one bank, complete authorization, and run Sync explicitly.
+   If the local callback does not finish, use the final callback URL field
+   inside the bank connection dialog. Keep that URL private.
+3. Compare a few payment dates and amounts with the bank's own view.
+4. Assign a category, add a matching term to a rule, and try Undo.
+5. Try Ctrl+mouse wheel zoom; Ctrl+0 resets it.
+6. Close/reopen the app. Check payments, rules and the bank connection remain.
+7. Run Sync again; check that payments have not duplicated.
+
+Record the FIRST point of friction as well as bugs. For each problem, note the
+steps, expected result and actual result. Testing help is available in setup,
+Preferences, and startup errors. Use Copy build info to identify the package.
+That copies version, build and platform only. Do not send PEM keys, callback
+URLs, application credentials, or raw data files. Blur bank details in images.
+
+If startup fails before a window appears, note the Windows version and exact
+dialog text. Missing VCRUNTIME/MSVCP DLL guidance is in README.txt. Real bank
+authorization remains an important part of this first manual Windows test.
