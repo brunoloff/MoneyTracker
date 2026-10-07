@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MoneyTracker
+GenericName=Personal finance
+Comment=Open your payments and classification rules
+Exec=/home/bruno/Crapbox/Repositories/MoneyTracker/launcher/run-native.sh
+Path=/home/bruno/Crapbox/Repositories/MoneyTracker
+Icon=/home/bruno/Crapbox/Repositories/MoneyTracker/launcher/moneytracker.svg
+Terminal=false
+Categories=Office;Finance;
+StartupNotify=false
+StartupWMClass=app.moneytracker.money_tracker

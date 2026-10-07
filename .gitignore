@@ -1,0 +1,28 @@
+# Private API keys
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+*.sqlite*
+*.db
+*.csv
+*.CSV
+*.xlsx
+!core/test/fixtures/cgd_synthetic.xlsx
+
+.private/
+__pycache__/
+*.log
+.DS_Store
+old-transactions.xlsx
+.~lock.*#
+
+# Generated native packaging and Dart caches
+/dist/
+/core/.dart_tool/
+/core/.packages
+/.public-repo/
+.venv/
+.fvm/

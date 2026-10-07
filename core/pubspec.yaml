@@ -1,0 +1,21 @@
+name: money_tracker_core
+description: Local MoneyTracker domain and persistence service, without Python.
+publish_to: none
+version: 1.0.0
+environment:
+  sdk: ^3.12.1
+dependencies:
+  http: ^1.6.0
+  crypto: ^3.0.7
+  sqlite3: 3.3.2
+  basic_utils: ^5.8.2
+  dart_jsonwebtoken: ^3.4.1
+  pointycastle: ^4.0.0
+  uuid: ^4.5.3
+  xml: ^6.6.1
+  archive: ^4.0.7
+  ffi: ^2.2.0
+  path: ^1.9.1
+dev_dependencies:
+  test: ^1.26.0
+  lints: ^6.0.0

@@ -1,0 +1,65 @@
+name: Desktop packages
+on:
+  workflow_dispatch:
+  push:
+    paths: ['app/**', 'core/**', 'packaging/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['app/**', 'core/**', 'packaging/**', '.github/workflows/desktop.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: linux
+          - os: windows-latest
+            target: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev
+      - name: Core tests
+        working-directory: core
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+      - name: Flutter tests
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test --concurrency=1
+      - name: Desktop build
+        working-directory: app
+        run: flutter build ${{ matrix.target }} --release
+      - name: Linux archive
+        if: runner.os == 'Linux'
+        run: |
+          cp packaging/README.txt packaging/moneytracker.svg app/build/linux/x64/release/bundle/
+          tar -C app/build/linux/x64/release/bundle -czf MoneyTracker-linux-x64.tar.gz .
+      - name: Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item packaging/README.txt app/build/windows/x64/runner/Release/
+          Compress-Archive -Path app/build/windows/x64/runner/Release/* -DestinationPath MoneyTracker-windows-x64.zip
+      - name: Windows packaged startup smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./packaging/test-windows-package.ps1 -Archive MoneyTracker-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MoneyTracker-${{ matrix.target }}-x64
+          path: MoneyTracker-${{ matrix.target }}-x64.*
+          if-no-files-found: error
