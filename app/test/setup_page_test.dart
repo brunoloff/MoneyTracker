@@ -69,7 +69,7 @@ void main() {
                 ),
               ),
               name: 'own-app.pem',
-              path: '/synthetic/own-app.pem',
+              path: 'own-app.pem',
             ),
           ),
         ),
@@ -123,7 +123,7 @@ void main() {
           pickKey: () async => XFile.fromData(
             Uint8List.fromList(utf8.encode('PRIVATE KEY synthetic')),
             name: 'own-app.pem',
-            path: '/synthetic/own-app.pem',
+            path: 'own-app.pem',
           ),
         ),
       ),

@@ -8,6 +8,7 @@ import 'package:money_tracker/ledger.dart';
 import 'package:money_tracker/taxonomy_settings.dart';
 import 'classification_test.dart' show taxonomy;
 import 'widget_test.dart' show data;
+import 'golden_checks.dart';
 
 void main() {
   setUpAll(() async {
@@ -54,9 +55,9 @@ void main() {
       await tester.tap(find.text('Manage categories and subcategories'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await expectLater(
+      await expectLinuxGolden(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/categories-${width.toInt()}.png'),
+        'goldens/categories-${width.toInt()}.png',
       );
       final food = find.byKey(const ValueKey('group-Food'));
       final name = find.descendant(

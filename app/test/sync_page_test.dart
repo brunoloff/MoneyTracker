@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:money_tracker/ledger.dart';
 import 'package:money_tracker/sync_page.dart';
 import 'widget_test.dart' show data;
+import 'golden_checks.dart';
 
 void main() {
   setUpAll(() async {
@@ -19,44 +20,87 @@ void main() {
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
 
-  test('PayPal history uses the dedicated endpoint and forwards start date', () async {
-    final requests = <http.Request>[];
-    final l = Ledger(client: MockClient((request) async {
-      requests.add(request);
-      return http.Response(jsonEncode(request.method == 'GET' ? data([]) : {}), 200);
-    }));
-    await l.sync(target: 'paypal', dateFrom: '2020-01-01');
-    final post = requests.firstWhere((r) => r.method == 'POST');
-    expect(post.url.path, '/api/paypal/sync');
-    expect(jsonDecode(post.body)['dateFrom'], '2020-01-01');
-    l.dispose();
-  });
+  test(
+    'PayPal history uses the dedicated endpoint and forwards start date',
+    () async {
+      final requests = <http.Request>[];
+      final l = Ledger(
+        client: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode(request.method == 'GET' ? data([]) : {}),
+            200,
+          );
+        }),
+      );
+      await l.sync(target: 'paypal', dateFrom: '2020-01-01');
+      final post = requests.firstWhere((r) => r.method == 'POST');
+      expect(post.url.path, '/api/paypal/sync');
+      expect(jsonDecode(post.body)['dateFrom'], '2020-01-01');
+      l.dispose();
+    },
+  );
 
   for (final failSecond in [false, true]) {
-    testWidgets('Large confirmations batch safely; failure=$failSecond', (tester) async {
+    testWidgets('Large confirmations batch safely; failure=$failSecond', (
+      tester,
+    ) async {
       final confirmed = <String>{};
       final sizes = <int>[];
       String id(int i) => i.toString().padLeft(32, '0');
-      final l = Ledger(client: MockClient((request) async {
-        if (request.url.path == '/api/paypal/confirm') {
-          expect(request.bodyBytes.length, lessThan(8192));
-          final pairs = jsonDecode(request.body)['pairs'] as List;
-          sizes.add(pairs.length);
-          if (failSecond && sizes.length == 2) return http.Response('{"error":"Temporary failure"}', 503);
-          confirmed.addAll(pairs.map((p) => p['observationId'] as String));
-          return http.Response('{}', 200);
-        }
-        if (request.url.path == '/api/ledger') return http.Response(jsonEncode(data([])), 200);
-        return http.Response(jsonEncode({'rows': [
-          for (var i = 0; i < 85; i++) if (!confirmed.contains(id(i))) {
-            'rule':'exact',
-            'observation':{'id':id(i),'description':'Payment $i','date':'2026-09-08','amount':-899,'currency':'EUR'},
-            'candidates':[{'id':id(i+1000),'description':'PayPal','date':'2026-09-10','amount':-899,'currency':'EUR','rule':'exact'}],
+      final l = Ledger(
+        client: MockClient((request) async {
+          if (request.url.path == '/api/paypal/confirm') {
+            expect(request.bodyBytes.length, lessThan(8192));
+            final pairs = jsonDecode(request.body)['pairs'] as List;
+            sizes.add(pairs.length);
+            if (failSecond && sizes.length == 2)
+              return http.Response('{"error":"Temporary failure"}', 503);
+            confirmed.addAll(pairs.map((p) => p['observationId'] as String));
+            return http.Response('{}', 200);
           }
-        ]}), 200);
-      }));
-      l.ingest(data([])); l.loading=false;
-      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: SyncPage(ledger:l)))));
+          if (request.url.path == '/api/ledger')
+            return http.Response(jsonEncode(data([])), 200);
+          return http.Response(
+            jsonEncode({
+              'rows': [
+                for (var i = 0; i < 85; i++)
+                  if (!confirmed.contains(id(i)))
+                    {
+                      'rule': 'exact',
+                      'observation': {
+                        'id': id(i),
+                        'description': 'Payment $i',
+                        'date': '2026-09-08',
+                        'amount': -899,
+                        'currency': 'EUR',
+                      },
+                      'candidates': [
+                        {
+                          'id': id(i + 1000),
+                          'description': 'PayPal',
+                          'date': '2026-09-10',
+                          'amount': -899,
+                          'currency': 'EUR',
+                          'rule': 'exact',
+                        },
+                      ],
+                    },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      l.ingest(data([]));
+      l.loading = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(child: SyncPage(ledger: l)),
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Review pending (85)'));
       await tester.tap(find.text('Review pending (85)'));
@@ -64,11 +108,16 @@ void main() {
       await tester.ensureVisible(find.text('Confirm 85 selected'));
       await tester.tap(find.text('Confirm 85 selected'));
       await tester.pumpAndSettle();
-      expect(sizes, failSecond ? [40,40] : [40,40,5]);
+      expect(sizes, failSecond ? [40, 40] : [40, 40, 5]);
       expect(confirmed.length, failSecond ? 40 : 85);
-      if (failSecond) expect(find.textContaining('40 associations confirmed before the error'), findsOneWidget);
+      if (failSecond)
+        expect(
+          find.textContaining('40 associations confirmed before the error'),
+          findsOneWidget,
+        );
       expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox()); l.dispose();
+      await tester.pumpWidget(const SizedBox());
+      l.dispose();
     });
   }
 
@@ -180,9 +229,9 @@ void main() {
       await tester.tap(find.text('Review pending (2)'));
       await tester.pumpAndSettle();
       expect(confirmed, false);
-      await expectLater(
+      await expectLinuxGolden(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/paypal-review-${width.toInt()}.png'),
+        'goldens/paypal-review-${width.toInt()}.png',
       );
       expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, true);
       await tester.tap(find.byType(Checkbox).first);

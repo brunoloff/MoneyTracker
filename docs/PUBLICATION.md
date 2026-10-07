@@ -30,6 +30,10 @@ storage initialize, and verifies a clean window close. This is a startup check;
 real bank authorization and interactive use on recipients' computers still
 need separate testing.
 
+Screenshot pixel baselines are checked on Linux, where they were generated;
+font rasterization differs on Windows. The remaining layout, interaction,
+setup, and zoom assertions run on both operating systems.
+
 The workflow uses standard GitHub-hosted runners, which are free for public
 repositories. It does not use larger runners, provider secrets, personal data,
 or real bank requests. Build archives contain the application and instructions.

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:money_tracker/main.dart';
 import 'package:money_tracker/ledger.dart';
+import 'golden_checks.dart';
 
 void main() {
   setUpAll(() async {
@@ -55,9 +56,9 @@ void main() {
       await tester.pumpWidget(MoneyTrackerApp(ledger: l));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await expectLater(
+      await expectLinuxGolden(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/dashboard-${width.toInt()}.png'),
+        'goldens/dashboard-${width.toInt()}.png',
       );
     });
   }
