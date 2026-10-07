@@ -54,13 +54,15 @@ void main() {
             expect(request.bodyBytes.length, lessThan(8192));
             final pairs = jsonDecode(request.body)['pairs'] as List;
             sizes.add(pairs.length);
-            if (failSecond && sizes.length == 2)
+            if (failSecond && sizes.length == 2) {
               return http.Response('{"error":"Temporary failure"}', 503);
+            }
             confirmed.addAll(pairs.map((p) => p['observationId'] as String));
             return http.Response('{}', 200);
           }
-          if (request.url.path == '/api/ledger')
+          if (request.url.path == '/api/ledger') {
             return http.Response(jsonEncode(data([])), 200);
+          }
           return http.Response(
             jsonEncode({
               'rows': [
@@ -110,11 +112,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(sizes, failSecond ? [40, 40] : [40, 40, 5]);
       expect(confirmed.length, failSecond ? 40 : 85);
-      if (failSecond)
+      if (failSecond) {
         expect(
           find.textContaining('40 associations confirmed before the error'),
           findsOneWidget,
         );
+      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       l.dispose();
