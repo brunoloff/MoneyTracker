@@ -9,9 +9,9 @@ The [Desktop packages workflow](https://github.com/brunoloff/MoneyTracker/action
 builds and tests Windows and Linux archives. See [publication notes](docs/PUBLICATION.md)
 for the source exclusions and packaged startup check.
 
-Download the [Windows x64 ZIP](https://github.com/brunoloff/MoneyTracker/releases/download/v1.0.0/MoneyTracker-windows-x64.zip)
-or [Linux x64 archive](https://github.com/brunoloff/MoneyTracker/releases/download/v1.0.0/MoneyTracker-linux-x64.tar.gz)
-from the [1.0.0 desktop preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.0).
+Download the [Windows x64 ZIP](https://github.com/brunoloff/MoneyTracker/releases/download/v1.0.1/MoneyTracker-windows-x64.zip)
+or [Linux x64 archive](https://github.com/brunoloff/MoneyTracker/releases/download/v1.0.1/MoneyTracker-linux-x64.tar.gz)
+from the [1.0.1 desktop preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.1).
 Extract the entire archive; on Windows, run `money_tracker.exe`. No GitHub account
 is needed to download these public release files.
 
@@ -42,7 +42,7 @@ flutter build linux --release  # on Linux
 Linux needs GTK 3, libsecret and an unlocked desktop Secret Service keyring.
 Windows uses the platform credential store. SQLite is bundled through Dart's
 native-assets build. Windows and Linux release builds passed the core and Flutter
-analysis/tests in [GitHub Actions](https://github.com/brunoloff/MoneyTracker/actions/runs/37651785640).
+analysis/tests in [GitHub Actions](https://github.com/brunoloff/MoneyTracker/actions/runs/37655335432).
 The extracted Windows ZIP also opened its window, initialized native storage,
 and closed cleanly on the Windows runner. Linux operation was checked locally.
 Real bank authorization and interactive use on recipients' Windows computers

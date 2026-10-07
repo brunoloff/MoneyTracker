@@ -52,3 +52,11 @@ the extracted-package startup check. The public downloads include checksums.
 Extract the entire Windows ZIP and run `money_tracker.exe`; keep all companion
 DLLs and the `data/` directory beside it. Each recipient supplies their own
 Enable Banking application and key through the app's setup screen.
+
+The [1.0.1 friend-testing preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.1)
+adds Testing help, a copyable version/build/platform summary, Windows-specific
+credential-store recovery guidance, and `TESTING.txt` in both archives. It was
+built from `41635c6dadfc9f53a51c37bbb947d376d3442d6f` in
+[run 37655335432](https://github.com/brunoloff/MoneyTracker/actions/runs/37655335432).
+Both platforms passed 288 core tests and 72 Flutter tests; the extracted
+Windows package also passed its startup and clean shutdown check.
