@@ -70,3 +70,11 @@ dashboard taglines were removed.
 built `ec6217029697258ff7d5335390d95e5b621a1ca7`; both platforms passed
 289 core tests and 77 Flutter tests, and the extracted Windows package passed
 its startup and clean shutdown check.
+
+The [1.0.3 Net correction](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.3)
+calculates Net as displayed Income minus displayed Spent, including historical
+income and averages. Rounded display amounts are subtracted so the visible
+figures agree to the cent.
+[Run 37755956947](https://github.com/brunoloff/MoneyTracker/actions/runs/37755956947)
+built `ece1a7197a826a780fa4d7cb790b7b80297a3a31`; both platforms passed
+289 core tests and 78 Flutter tests, plus the Windows package startup check.
