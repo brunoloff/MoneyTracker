@@ -60,3 +60,13 @@ built from `41635c6dadfc9f53a51c37bbb947d376d3442d6f` in
 [run 37655335432](https://github.com/brunoloff/MoneyTracker/actions/runs/37655335432).
 Both platforms passed 288 core tests and 72 Flutter tests; the extracted
 Windows package also passed its startup and clean shutdown check.
+
+The [1.0.2 income-display preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.2)
+adds saved single-calendar-month income modes (selected month, preceding month,
+or average of 1–24 preceding complete months), with zero-income months included.
+Spending and Net continue to use the selected period. Both introductory
+dashboard taglines were removed.
+[Run 37754278539](https://github.com/brunoloff/MoneyTracker/actions/runs/37754278539)
+built `ec6217029697258ff7d5335390d95e5b621a1ca7`; both platforms passed
+289 core tests and 77 Flutter tests, and the extracted Windows package passed
+its startup and clean shutdown check.
