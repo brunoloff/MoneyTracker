@@ -421,6 +421,7 @@ class MoneyTrackerService {
           }
           for (final spec in [
             ('periodCount', 1, 24),
+            ('incomeAverageMonths', 1, 24),
             ('undoLimit', 0, 10000),
           ]) {
             if (body.containsKey(spec.$1) &&
@@ -441,6 +442,14 @@ class MoneyTrackerService {
               body['monthlyAverage'] is! bool) {
             invalid('Invalid average setting');
           }
+          if (body.containsKey('incomeMode') &&
+              !{
+                'this_month',
+                'last_month',
+                'average',
+              }.contains(body['incomeMode'])) {
+            invalid('Invalid income display');
+          }
           for (final key in [
             'period',
             'selectedUser',
@@ -448,6 +457,8 @@ class MoneyTrackerService {
             'undoLimit',
             'fxTolerancePercent',
             'monthlyAverage',
+            'incomeMode',
+            'incomeAverageMonths',
           ]) {
             if (body.containsKey(key)) prefs[key] = body[key];
           }

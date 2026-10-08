@@ -214,7 +214,7 @@ void main() {
       await tester.ensureVisible(find.text('Overview'));
       await tester.tap(find.text('Overview'));
       await tester.pumpAndSettle();
-      expect(find.text('Your money, clearly.'), findsOneWidget);
+      expect(find.text('Spent'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -240,7 +240,7 @@ void main() {
       ledger.ingest(snapshot);
       await tester.pumpWidget(MoneyTrackerApp(ledger: ledger));
       await tester.pumpAndSettle();
-      expect(find.text('Your money, clearly.'), findsOneWidget);
+      expect(find.text('Spent'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final preferences = find.byTooltip('Preferences').evaluate().isNotEmpty
           ? find.byTooltip('Preferences')

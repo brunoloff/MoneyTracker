@@ -281,20 +281,6 @@ class _DashboardState extends State<Dashboard>
   Widget _content() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        'Your money, clearly.',
-        style: TextStyle(
-          fontSize: MediaQuery.sizeOf(context).width < 600 ? 29 : 38,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1.2,
-        ),
-      ),
-      const SizedBox(height: 6),
-      const Text(
-        'All your payments, in one place.',
-        style: TextStyle(fontSize: 17, color: muted),
-      ),
-      const SizedBox(height: 24),
       if (l.error != null)
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -437,11 +423,32 @@ class _DashboardState extends State<Dashboard>
           ),
         ),
       _panel(
-        Row(
+        Column(
           children: [
-            _metric('Spent', l.displayAmount(l.spent)),
-            _metric('Income', l.displayAmount(l.income)),
-            _metric('Net', l.displayAmount(l.income - l.spent), net: true),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _metric('Spent', l.displayAmount(l.spent)),
+                _metric(
+                  'Income',
+                  l.displayedIncome,
+                  controls: l.canChooseIncome ? _incomeControls() : null,
+                ),
+                _metric('Net', l.displayAmount(l.income - l.spent), net: true),
+              ],
+            ),
+            if (l.canChooseIncome && l.incomeMode != 'this_month') ...[
+              const SizedBox(height: 12),
+              Text(
+                '${l.incomeMode == 'average' ? 'Average of ${l.incomeAverageMonths} calendar months before the selected month, including zero-income months.' : 'Income from the calendar month before the selected month.'} Spending and Net use the selected month.',
+                style: const TextStyle(color: muted, fontSize: 12),
+              ),
+              if (l.incompleteIncomeHistory)
+                const Text(
+                  'Income history may be incomplete. Download older history in Preferences.',
+                  style: TextStyle(color: muted, fontSize: 12),
+                ),
+            ],
           ],
         ),
       ),
@@ -474,7 +481,72 @@ class _DashboardState extends State<Dashboard>
     ),
     child: child,
   );
-  Widget _metric(String name, int value, {bool net = false}) => Expanded(
+  Widget _incomeControls() => SizedBox(
+    width: 140,
+    child: Column(
+      children: [
+        PopupMenuButton<String>(
+          key: const ValueKey('income-mode'),
+          tooltip: 'Income display',
+          enabled: !l.saving,
+          initialValue: l.incomeMode,
+          onSelected: (value) => l.setIncomeDisplay(mode: value),
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'this_month', child: Text('This month')),
+            PopupMenuItem(value: 'last_month', child: Text('Last month')),
+            PopupMenuItem(
+              value: 'average',
+              child: Text('Average over last X months'),
+            ),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    switch (l.incomeMode) {
+                      'last_month' => 'Last month',
+                      'average' => 'Average',
+                      _ => 'This month',
+                    },
+                    style: const TextStyle(fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const Icon(Icons.expand_more, size: 16),
+              ],
+            ),
+          ),
+        ),
+        if (l.incomeMode == 'average')
+          DropdownButton<int>(
+            key: const ValueKey('income-average-months'),
+            isExpanded: true,
+            value: l.incomeAverageMonths,
+            items: [
+              for (var i = 1; i <= 24; i++)
+                DropdownMenuItem(
+                  value: i,
+                  child: Text(
+                    '$i ${i == 1 ? 'month' : 'months'}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+            onChanged: l.saving
+                ? null
+                : (value) => l.setIncomeDisplay(months: value!),
+          ),
+      ],
+    ),
+  );
+  Widget _metric(
+    String name,
+    int value, {
+    bool net = false,
+    Widget? controls,
+  }) => Expanded(
     child: Column(
       children: [
         Text(name, style: const TextStyle(color: muted, fontSize: 13)),
@@ -490,6 +562,7 @@ class _DashboardState extends State<Dashboard>
             ),
           ),
         ),
+        ?controls,
       ],
     ),
   );

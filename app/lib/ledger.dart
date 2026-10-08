@@ -126,6 +126,8 @@ class Ledger extends ChangeNotifier {
   int salaryIndex = 0;
   int periodCount = 1;
   bool monthlyAverage = false;
+  String incomeMode = 'this_month';
+  int incomeAverageMonths = 3;
   double fxTolerancePercent = 10;
   String? historyFrom, syncProgress;
   Map<String, dynamic>? historyImport;
@@ -204,6 +206,16 @@ class Ledger extends ChangeNotifier {
       24,
     );
     monthlyAverage = data['preferences']?['monthlyAverage'] ?? false;
+    final savedIncomeMode = data['preferences']?['incomeMode'];
+    incomeMode =
+        {'this_month', 'last_month', 'average'}.contains(savedIncomeMode)
+        ? savedIncomeMode as String
+        : 'this_month';
+    incomeAverageMonths =
+        ((data['preferences']?['incomeAverageMonths'] ?? 3) as int).clamp(
+          1,
+          24,
+        );
     fxTolerancePercent = (data['preferences']?['fxTolerancePercent'] ?? 10)
         .toDouble();
     syncing = data['syncing'] ?? false;
@@ -376,6 +388,24 @@ class Ledger extends ChangeNotifier {
       error = null;
     } catch (e) {
       error = 'Could not save range: $e';
+    }
+    saving = false;
+    changed();
+  }
+
+  Future<void> setIncomeDisplay({String? mode, int? months}) async {
+    saving = true;
+    changed();
+    try {
+      await post('/api/preferences', {
+        'incomeMode': ?mode,
+        'incomeAverageMonths': ?months,
+      });
+      if (mode != null) incomeMode = mode;
+      if (months != null) incomeAverageMonths = months;
+      error = null;
+    } catch (e) {
+      error = 'Could not save income display: $e';
     }
     saving = false;
     changed();
@@ -721,6 +751,39 @@ class Ledger extends ChangeNotifier {
   int get income {
     _ensureSummary();
     return _income;
+  }
+
+  bool get canChooseIncome => period == 'month' && periodCount == 1;
+  DateTime get incomeReferenceStart => DateTime(
+    month.year,
+    month.month - (incomeMode == 'average' ? incomeAverageMonths : 1),
+  );
+  bool get incompleteIncomeHistory =>
+      canChooseIncome &&
+      incomeMode != 'this_month' &&
+      historyFrom != null &&
+      incomeReferenceStart.isBefore(DateTime.parse(historyFrom!));
+
+  int get displayedIncome {
+    if (!canChooseIncome || incomeMode == 'this_month') {
+      return displayAmount(income);
+    }
+    _ensureSelection();
+    final from = incomeReferenceStart;
+    final until = DateTime(month.year, month.month);
+    var total = 0;
+    for (final p in _selected) {
+      if (p.booked &&
+          p.amount > 0 &&
+          mainCategory(p.category) != 'Transfer' &&
+          !p.date.isBefore(from) &&
+          p.date.isBefore(until)) {
+        total += p.amount;
+      }
+    }
+    return incomeMode == 'average'
+        ? (total / incomeAverageMonths).round()
+        : total;
   }
 
   Map<String, int> get directCategoryTotals {
