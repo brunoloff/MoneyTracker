@@ -434,13 +434,13 @@ class _DashboardState extends State<Dashboard>
                   l.displayedIncome,
                   controls: l.canChooseIncome ? _incomeControls() : null,
                 ),
-                _metric('Net', l.displayAmount(l.income - l.spent), net: true),
+                _metric('Net', l.displayedNet, net: true),
               ],
             ),
             if (l.canChooseIncome && l.incomeMode != 'this_month') ...[
               const SizedBox(height: 12),
               Text(
-                '${l.incomeMode == 'average' ? 'Average of ${l.incomeAverageMonths} calendar months before the selected month, including zero-income months.' : 'Income from the calendar month before the selected month.'} Spending and Net use the selected month.',
+                '${l.incomeMode == 'average' ? 'Average of ${l.incomeAverageMonths} calendar months before the selected month, including zero-income months.' : 'Income from the calendar month before the selected month.'} Spending uses the selected month. Net is displayed income minus spending.',
                 style: const TextStyle(color: muted, fontSize: 12),
               ),
               if (l.incompleteIncomeHistory)

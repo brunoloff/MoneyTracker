@@ -786,6 +786,8 @@ class Ledger extends ChangeNotifier {
         : total;
   }
 
+  int get displayedNet => displayedIncome - displayAmount(spent);
+
   Map<String, int> get directCategoryTotals {
     _ensureSummary();
     return _directTotals;

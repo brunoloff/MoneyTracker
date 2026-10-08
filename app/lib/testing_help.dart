@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const appVersion = '1.0.2+3';
+const appVersion = '1.0.3+4';
 const buildRevision = String.fromEnvironment(
   'MONEYTRACKER_BUILD_REVISION',
   defaultValue: 'local build',

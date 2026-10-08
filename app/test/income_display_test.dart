@@ -32,10 +32,13 @@ void main() {
         ]),
       );
       expect(l.displayedIncome, 20000);
+      expect(l.displayedNet, 15000);
       l.incomeMode = 'last_month';
       expect(l.displayedIncome, 90000);
+      expect(l.displayedNet, 85000);
       l.incomeMode = 'average';
       expect(l.displayedIncome, 40000); // Divide by all three months.
+      expect(l.displayedNet, 35000);
       expect(l.income, 20000);
       expect(l.spent, 5000);
       expect(l.visible.map((p) => p.id), ['spent', 'current']);
@@ -79,6 +82,25 @@ void main() {
     expect(l.incompleteIncomeHistory, false);
   });
 
+  test(
+    'net subtracts the displayed rounded amounts in a multi-month average',
+    () {
+      final l = Ledger(clock: () => DateTime(2027, 1, 15));
+      addTearDown(l.dispose);
+      l.ingest(
+        data([
+          payment('income', '2027-01-01', 2, 'Other income'),
+          payment('expense', '2027-01-02', -1, 'Food'),
+        ]),
+      );
+      l.periodCount = 3;
+      l.monthlyAverage = true;
+      expect(l.displayedIncome, 1);
+      expect(l.displayAmount(l.spent), 0);
+      expect(l.displayedNet, 1);
+    },
+  );
+
   for (final width in [390.0, 1100.0]) {
     testWidgets('income controls save independently and fit at $width', (
       tester,
@@ -106,6 +128,7 @@ void main() {
       await tester.tap(find.text('Last month').last);
       await tester.pumpAndSettle();
       expect(l.displayedIncome, 60000);
+      expect(find.text('+€600.00'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('income-mode')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Average over last X months'));
@@ -116,6 +139,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(saved, {'incomeMode': 'average', 'incomeAverageMonths': 2});
       expect(l.displayedIncome, 30000);
+      expect(find.text('+€300.00'), findsOneWidget);
       expect(l.periodCount, 1);
       expect(l.income, 0);
       expect(tester.takeException(), isNull);
