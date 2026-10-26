@@ -93,3 +93,26 @@ and clean shutdown check. The ECB SDMX parser was also checked against a live
 not measured. Provider date-range references:
 [Enable Banking](https://enablebanking.com/docs/api/reference/#get-account-transactions)
 and [ECB Data API](https://data.ecb.europa.eu/help/api/data).
+
+The [1.0.5 borrowing-groups preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.5)
+reserves and orders special categories consistently across selectors, preserves
+legacy Ignored tags, and adds Borrowing and Deposits with excluded advances and
+repayments. Groups replace their members with an independently classifiable
+virtual leftover. Nested leftovers enforce deletion order; deleting a group
+restores its members. Original bank records, duplicate links, categories, tags,
+Undo/Redo and imported history are preserved.
+[Run 40315218627](https://github.com/brunoloff/MoneyTracker/actions/runs/40315218627)
+built `0b55d17c50fb54861a6c6b6892af99ae70f9ee99`; Windows and Linux each passed
+310 core tests and 90 Flutter tests, both analyzers, and release builds. Windows
+passed its extracted-package window, native-storage and clean-shutdown check.
+Both the local Linux release and extracted CI Linux archive initialized SQLite
+and stayed running in isolated display/data/keyring sessions. UI renders and
+interactions were checked at 390px and 1100px. The original live ledger was not
+modified or synced during this work.
+
+The release archives were checked for integrity, required native files and
+private-data exclusions. Public anonymous downloads were compared to the tested
+archives. SHA-256 checksums are:
+
+- Windows: `95e1ee338d7f44a3bcd4bfb9ced52190e194b8970e31b1ac294cd9a54fe67d7b`
+- Linux: `7f26634a3e3ab01b64d977d3b82fe1369434a5a4c03c46a17e9c609f2268edba`
