@@ -78,6 +78,7 @@ class Payment {
       tags = (j['tags'] as List? ?? []).cast<String>();
   bool get transfer => category == 'Transfer';
   bool get booked => status == 'BOOK';
+  bool get ignored => tags.contains('ignored');
 }
 
 int? parsePrice(String text) {
@@ -129,7 +130,7 @@ class Ledger extends ChangeNotifier {
   String incomeMode = 'this_month';
   int incomeAverageMonths = 3;
   double fxTolerancePercent = 10;
-  String? historyFrom, syncProgress;
+  String? historyFrom, syncProgress, syncResult;
   Map<String, dynamic>? historyImport;
   List<Map<String, dynamic>> rules = [];
   String period = 'month',
@@ -201,6 +202,7 @@ class Ledger extends ChangeNotifier {
       salaryDates.isEmpty ? 0 : salaryDates.length - 1,
     );
     syncProgress = data['syncProgress'];
+    syncResult = data['syncResult'];
     periodCount = ((data['preferences']?['periodCount'] ?? 1) as int).clamp(
       1,
       24,
@@ -538,6 +540,7 @@ class Ledger extends ChangeNotifier {
             .where(
               (p) =>
                   p.booked &&
+                  !p.ignored &&
                   (p.reviewed || p.ruleName != null) &&
                   p.amount > 0 &&
                   mainCategory(p.category) == 'Salary' &&
@@ -573,7 +576,7 @@ class Ledger extends ChangeNotifier {
         if (p.date.isBefore(from) || !p.date.isBefore(until)) continue;
         rows.add(p);
         final main = mainCategory(p.category);
-        if (!p.booked || main == 'Transfer') continue;
+        if (!p.booked || p.ignored || main == 'Transfer') continue;
         if (p.amount < 0) {
           _spent -= p.amount;
           directTotals[p.category] = (directTotals[p.category] ?? 0) - p.amount;
@@ -774,6 +777,7 @@ class Ledger extends ChangeNotifier {
     var total = 0;
     for (final p in _selected) {
       if (p.booked &&
+          !p.ignored &&
           p.amount > 0 &&
           mainCategory(p.category) != 'Transfer' &&
           !p.date.isBefore(from) &&

@@ -465,10 +465,10 @@ void main() {
         rows.any((r) => r['id'] == 'book' && r['category'] == 'Rent'),
         true,
       );
-      // Use the ordinary sync's actual recent window, rather than a fixed date.
+      // The overlap includes unresolved pending rows, so an omitted pending row is removed.
       expect(
         rows.any((r) => r['id'] == 'old-pending'),
-        DateTime.now().difference(DateTime(2026, 9, 25)).inDays > 90,
+        false,
       );
       await service.request('POST', '/api/sync');
       await service.waitForSync();

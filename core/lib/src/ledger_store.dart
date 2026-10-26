@@ -135,6 +135,25 @@ class LedgerStore {
 
   Set<dynamic> get categoryIds =>
       (taxonomy()['categories'] as List).map((c) => c['id']).toSet();
+  Future<void> ensureIgnoredTag() async {
+    final config = taxonomy();
+    if ((config['tags'] as List).any((t) => t['id'] == 'ignored')) return;
+    if ((config['tags'] as List).length >= 200) {
+      invalid(
+        'Remove an unused tag before adding the special Ignored tag (200-tag limit)',
+      );
+    }
+    final names = (config['tags'] as List)
+        .map((t) => t['name'].toString().toLowerCase())
+        .toSet();
+    var name = 'Ignored', suffix = 1;
+    while (names.contains(name.toLowerCase())) {
+      name = 'Ignored (excluded ${suffix++})';
+    }
+    config['tags'].add({'id': 'ignored', 'name': name});
+    await write('taxonomy.json', config);
+  }
+
   Map<dynamic, dynamic> get roots => {
     for (final c in taxonomy()['categories']) c['id']: c['parent'] ?? c['id'],
   };
@@ -313,6 +332,15 @@ class LedgerStore {
   }
 
   Future<void> saveTaxonomy(Map config) async {
+    final ignored = (taxonomy()['tags'] as List)
+        .where((t) => t['id'] == 'ignored')
+        .firstOrNull;
+    if (ignored != null &&
+        !(config['tags'] as List).any(
+          (t) => t['id'] == 'ignored' && t['name'] == ignored['name'],
+        )) {
+      invalid('Ignored is a special tag and cannot be renamed or deleted');
+    }
     final old = {for (final c in taxonomy()['categories']) c['id']: c};
     final remaining = (config['categories'] as List)
             .map((c) => c['id'])

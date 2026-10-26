@@ -6,8 +6,50 @@ import 'classification.dart';
 import 'compat.dart';
 import 'ledger_store.dart';
 import 'provider.dart';
+import 'sync_start.dart';
 
 const ecbUrl = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml';
+const ecbIncrementalUrl =
+    'https://data-api.ecb.europa.eu/service/data/EXR/D..EUR.SP00.A';
+Map<String, dynamic> parseIncrementalRates(String content) {
+  final result = <String, dynamic>{};
+  final document = XmlDocument.parse(content);
+  for (final series in document.descendants.whereType<XmlElement>().where(
+    (e) => e.name.local == 'Series',
+  )) {
+    final keys = {
+      for (final e in series.descendants.whereType<XmlElement>().where(
+        (e) => e.name.local == 'Value',
+      ))
+        e.getAttribute('id'): e.getAttribute('value'),
+    };
+    final currency = keys['CURRENCY'];
+    if (keys['FREQ'] != 'D' ||
+        keys['CURRENCY_DENOM'] != 'EUR' ||
+        currency == null) {
+      continue;
+    }
+    for (final observation in series.childElements.where(
+      (e) => e.name.local == 'Obs',
+    )) {
+      final fields = {
+        for (final e in observation.childElements)
+          e.name.local: e.getAttribute('value'),
+      };
+      final date = fields['ObsDimension'], value = fields['ObsValue'];
+      if (date == null || value == null) invalid('Invalid ECB observation');
+      dateOnly(date);
+      if (Exact.parse(value).compareTo(Exact(BigInt.zero)) <= 0) {
+        invalid('Invalid ECB rate');
+      }
+      result.putIfAbsent(date, () => <String, dynamic>{'EUR': '1'})[currency] =
+          value;
+    }
+  }
+  if (result.isEmpty) invalid('ECB download contains no exchange rates');
+  return result;
+}
+
 Map<String, dynamic> parseRates(String content) {
   final rates = <String, dynamic>{}, document = XmlDocument.parse(content);
   for (final element in document.descendants.whereType<XmlElement>()) {
@@ -83,6 +125,7 @@ String paypalStart(dynamic value, [DateTime? now]) {
 
 bool paypalEligible(Map observation, Map bank, Map owners) =>
     bank['status'] == 'BOOK' &&
+    !(bank['tags'] as List? ?? []).contains('ignored') &&
     observation['status'] == 'BOOK' &&
     bank['amount'] * observation['amount'] > 0 &&
     RegExp(
@@ -97,32 +140,66 @@ class Paypal {
   final http.Client client;
   Paypal(this.store, this.api, this.client);
   Future<void> downloadRates({void Function(String)? progress}) async {
-    progress?.call('Downloading ECB historical exchange rates…');
-    final response = await client
-        .get(Uri.parse(ecbUrl))
-        .timeout(const Duration(seconds: 60));
-    if (response.statusCode != 200) {
+    final previous = store.read('exchange-rates.json', {});
+    final known = Map<String, dynamic>.from(previous['rates'] ?? {});
+    final days = known.keys.toList()..sort();
+    final url = days.isEmpty
+        ? Uri.parse(ecbUrl)
+        : Uri.parse(ecbIncrementalUrl).replace(
+            queryParameters: {
+              'startPeriod': days.last,
+              'format': 'genericdata',
+              'detail': 'dataonly',
+            },
+          );
+    progress?.call(
+      days.isEmpty
+          ? 'Downloading ECB historical exchange rates…'
+          : 'Downloading ECB exchange rates from ${days.last}…',
+    );
+    final response = await client.get(url).timeout(const Duration(seconds: 60));
+    if (response.statusCode != 200 &&
+        !(response.statusCode == 204 && known.isNotEmpty)) {
       throw StateError('ECB download failed (${response.statusCode})');
+    }
+    if (response.statusCode == 200) {
+      final fetched = days.isEmpty
+          ? parseRates(utf8.decode(response.bodyBytes))
+          : parseIncrementalRates(utf8.decode(response.bodyBytes));
+      for (final entry in fetched.entries) {
+        known[entry.key] = {
+          ...Map<String, dynamic>.from(known[entry.key] ?? {}),
+          ...entry.value as Map,
+        };
+      }
     }
     await store.write('exchange-rates.json', {
       'source': 'ECB',
-      'url': ecbUrl,
+      'url': url.toString(),
       'downloadedAt': DateTime.now().toUtc().toIso8601String(),
-      'rates': parseRates(utf8.decode(response.bodyBytes)),
+      'rates': known,
     });
   }
 
   Future<void> sync({dynamic dateFrom, void Function(String)? progress}) async {
-    final start = paypalStart(dateFrom),
-        dates = <String>[],
-        session = store.read('session-paypal.json', {});
+    final dates = <String>[], session = store.read('session-paypal.json', {});
     if (!present(session['accounts'])) {
       invalid('Authorize a PayPal account first.');
     }
     final staged = store.read('paypal-observations.json', {});
+    final starts = <String, String>{};
     for (final account in session['accounts']) {
-      final accountId = paypalAccountId(account),
-          params = {'date_from': start, 'strategy': 'longest'},
+      final accountId = paypalAccountId(account);
+      final floor = day(historyStart(7));
+      final automatic = incrementalStart((staged as Map).values, accountId);
+      final start = dateFrom == null
+          ? (automatic.compareTo(floor) < 0 ? floor : automatic)
+          : paypalStart(dateFrom);
+      starts[accountId] = start;
+      final params = {
+            'date_from': start,
+            if (dateFrom != null) 'strategy': 'longest',
+          },
           seen = <String>{};
       while (true) {
         final page = await api(
@@ -145,6 +222,13 @@ class Paypal {
               : present(raw['note'])
               ? raw['note']
               : 'PayPal payment';
+          final date =
+              (raw['transaction_date'] ??
+                          raw['booking_date'] ??
+                          raw['value_date'])
+                      .substring(0, 10)
+                  as String;
+          if (date.compareTo(start) < 0) continue;
           staged[id] = {
             'id': id,
             'accountId': accountId,
@@ -153,11 +237,7 @@ class Paypal {
             'kind': 'purchase',
             'externalId': reference,
             'description': description,
-            'date':
-                (raw['transaction_date'] ??
-                        raw['booking_date'] ??
-                        raw['value_date'])
-                    .substring(0, 10),
+            'date': date,
             'amount':
                 cents(raw['transaction_amount']['amount']) * (debit ? -1 : 1),
             'currency': raw['transaction_amount']['currency'],
@@ -166,7 +246,7 @@ class Paypal {
           };
           dates.add(staged[id]['date']);
         }
-        progress?.call('PayPal: ${staged.length} payments downloaded');
+        progress?.call('PayPal from $start: ${dates.length} payments received');
         final cursor = page['continuation_key'];
         if (!present(cursor)) break;
         if (seen.length >= 1000 || !seen.add(cursor)) {
@@ -176,10 +256,12 @@ class Paypal {
       }
     }
     dates.sort();
+    final requested = starts.values.toList()..sort();
     await store.write('paypal-observations.json', staged);
     await store.write('paypal-sync.json', {
       'at': DateTime.now().toUtc().toIso8601String(),
-      'requestedFrom': start,
+      'requestedFrom': requested.isEmpty ? null : requested.first,
+      'accountStarts': starts,
       'earliestReturned': dates.isEmpty ? null : dates.first,
       'latestReturned': dates.isEmpty ? null : dates.last,
       'returnedCount': dates.length,
@@ -189,6 +271,7 @@ class Paypal {
   Map<String, dynamic> review({String query = '', dynamic observationId}) {
     final observations = store.read('paypal-observations.json', {}),
         links = store.read('paypal-associations.json', {}),
+        tags = store.read('tags.json', {}),
         owners = store.read('profiles.json', {})['accountUsers'] ?? {};
     final snapshot = store.snapshot(),
         banks = snapshot['transactions'],
@@ -202,8 +285,16 @@ class Paypal {
         tolerance = Exact.parse(
           store.read('preferences.json', {})['fxTolerancePercent'] ?? 10,
         ),
-        rows = <dynamic>[];
+        rows = <dynamic>[],
+        ignored = <dynamic>[];
     for (final o in (observations as Map).values) {
+      if ((tags[o['id']] as List? ?? []).contains('ignored')) {
+        ignored.add({
+          ...Map<String, dynamic>.from(o)..remove('raw'),
+          'tags': ['ignored'],
+        });
+        continue;
+      }
       if (links.containsKey(o['id']) ||
           observationId != null && o['id'] != observationId) {
         continue;
@@ -311,6 +402,7 @@ class Paypal {
     final history = store.read('paypal-sync.json', {});
     return {
       'rows': rows,
+      'ignored': ignored,
       'confirmed': links.length,
       'exchangeRates': table.status(),
       'tolerancePercent': tolerance.toDouble(),
@@ -339,5 +431,23 @@ class Paypal {
       links[oid] = bid;
     }
     await store.write('paypal-associations.json', links);
+  }
+
+  Future<void> ignore(dynamic id, dynamic ignored) async {
+    final observations = store.read('paypal-observations.json', {});
+    if (id is! String || ignored is! bool || !observations.containsKey(id)) {
+      invalid('Unknown PayPal payment');
+    }
+    if (store.read('paypal-associations.json', {}).containsKey(id)) {
+      invalid('This payment is already associated with a bank movement');
+    }
+    final tags = store.read('tags.json', {});
+    final values = <dynamic>{...tags[id] ?? []}..remove('ignored');
+    if (ignored) {
+      values.add('ignored');
+      await store.ensureIgnoredTag();
+    }
+    tags[id] = values.toList()..sort();
+    await store.write('tags.json', tags);
   }
 }

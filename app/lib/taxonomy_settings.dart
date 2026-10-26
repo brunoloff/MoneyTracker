@@ -360,7 +360,7 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
                   Expanded(
                     child: TextFormField(
                       initialValue: t['name'],
-                      enabled: !busy,
+                      enabled: !busy && t['id'] != 'ignored',
                       maxLength: 60,
                       decoration: const InputDecoration(
                         labelText: 'Tag name',
@@ -371,7 +371,9 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
                   ),
                   IconButton(
                     tooltip: 'Delete tag',
-                    onPressed: busy ? null : () => edit(() => tags.remove(t)),
+                    onPressed: busy || t['id'] == 'ignored'
+                        ? null
+                        : () => edit(() => tags.remove(t)),
                     icon: const Icon(Icons.delete_outline),
                   ),
                 ],

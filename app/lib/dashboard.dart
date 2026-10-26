@@ -465,7 +465,7 @@ class _DashboardState extends State<Dashboard>
       ),
       const SizedBox(height: 6),
       const Text(
-        'Totals use booked payments. Transfers are excluded; refunds count as income. Categories are suggestions until you review them.',
+        'Totals use booked payments. Transfers and ignored payments are excluded; refunds count as income. Categories are suggestions until you review them.',
         style: TextStyle(color: muted, fontSize: 12),
       ),
       const SizedBox(height: 24),

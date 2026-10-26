@@ -2,6 +2,7 @@ import 'classification.dart';
 import 'compat.dart';
 import 'ledger_store.dart';
 import 'provider.dart';
+import 'sync_start.dart';
 
 class BankSync {
   final LedgerStore store;
@@ -41,6 +42,7 @@ class BankSync {
         downloaded = <dynamic>[],
         coverage = <dynamic>[],
         allowed = store.categoryIds;
+    final starts = <String, String>{};
     var index = 0;
     for (final e in selected.entries) {
       index++;
@@ -49,6 +51,10 @@ class BankSync {
           source = e.value.value,
           id = e.key,
           uid = Uri.encodeComponent(a['uid']);
+      final accountStart = years != null
+          ? start
+          : incrementalStart(previous['transactions'] ?? [], id);
+      starts[id] = accountStart;
       final balances =
               (await api('/accounts/$uid/balances'))['balances'] as List,
           kind = a['cash_account_type'] ?? '',
@@ -77,7 +83,7 @@ class BankSync {
       final seen = <String>{}, rawRows = <dynamic>[];
       while (true) {
         final query = {
-          'date_from': start,
+          'date_from': accountStart,
           if (years != null) 'strategy': 'longest',
           'continuation_key': ?continuation,
         };
@@ -86,7 +92,7 @@ class BankSync {
         );
         rawRows.addAll(page['transactions']);
         progress?.call(
-          'Account $index/${selected.length}: ${rawRows.length} records received',
+          'Account $index/${selected.length} from $accountStart: ${rawRows.length} records received',
         );
         continuation = page['continuation_key'];
         if (!present(continuation)) break;
@@ -127,7 +133,7 @@ class BankSync {
     for (final t in old) {
       if (!syncedIds.contains(t['accountId']) ||
           years != null ||
-          (t['date'] as String).compareTo(start) < 0 ||
+          (t['date'] as String).compareTo(starts[t['accountId']]!) < 0 ||
           t['status'] == 'BOOK') {
         retained[t['id']] = t;
       }
@@ -151,6 +157,7 @@ class BankSync {
       'transactions': transactions,
       'syncedAt': now,
       'consentUntil': session['access']?['valid_until'],
+      'syncStarts': starts,
     };
     final dates = transactions.map((t) => t['date'] as String).toList()..sort(),
         knownStart = dates.isEmpty

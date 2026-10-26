@@ -11,6 +11,7 @@ class SyncPage extends StatefulWidget {
 class _SyncPageState extends State<SyncPage> {
   Ledger get l => widget.ledger;
   List<dynamic> rows = [];
+  List<dynamic> ignoredRows = [];
   final Map<String, String> choices = {};
   bool busy = false, awaitingSync = false, reviewing = false;
   String? error;
@@ -19,6 +20,7 @@ class _SyncPageState extends State<SyncPage> {
   double tolerance = 10;
   DateTime paypalFrom = DateTime.now().subtract(const Duration(days: 90));
   bool historyInitialized = false;
+  bool customPaypalFrom = false;
   Map<String, dynamic> history = {};
   String dateLabel(DateTime date) => date.toIso8601String().substring(0, 10);
   @override
@@ -43,28 +45,45 @@ class _SyncPageState extends State<SyncPage> {
       awaitingSync = false;
       if (l.error == null) {
         reviewing = true;
-        refresh();
       }
+      refresh();
     }
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool preserveChoices = false}) async {
+    final previousIds = preserveChoices
+        ? rows.map((r) => r['observation']['id']).toSet()
+        : <dynamic>{};
+    final previousChoices = preserveChoices
+        ? Map<String, String>.from(choices)
+        : <String, String>{};
     try {
       final data = await l.post('/api/paypal/review', {});
       if (mounted) {
         setState(() {
           rows = data['rows'];
+          ignoredRows = data['ignored'] ?? [];
           history = Map<String, dynamic>.from(data['history'] ?? {});
           if (!historyInitialized && history['requestedFrom'] != null) {
             paypalFrom = DateTime.parse(history['requestedFrom']);
           }
           historyInitialized = true;
           choices.clear();
+          for (final row in rows) {
+            final id = row['observation']['id'],
+                bankId = previousChoices[row['observation']['id']];
+            if (bankId != null &&
+                !choices.containsValue(bankId) &&
+                (row['candidates'] as List).any((c) => c['id'] == bankId)) {
+              choices[id] = bankId;
+            }
+          }
           rateStatus = Map<String, dynamic>.from(data['exchangeRates'] ?? {});
           tolerance = (data['tolerancePercent'] ?? 10).toDouble();
           // Exact matches take priority; never select the same bank movement twice.
           for (final rule in ['exact', 'fx']) {
             for (final row in rows.where((r) => r['rule'] == rule)) {
+              if (previousIds.contains(row['observation']['id'])) continue;
               final suggestion = (row['candidates'] as List)
                   .where(
                     (c) => c['rule'] == rule && !choices.containsValue(c['id']),
@@ -80,6 +99,29 @@ class _SyncPageState extends State<SyncPage> {
       }
     } catch (e) {
       if (mounted) setState(() => error = '$e');
+    }
+  }
+
+  Future<void> setIgnored(String id, bool ignored) async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    l.saving = true;
+    l.changed();
+    try {
+      await l.post('/api/paypal/ignore', {
+        'observationId': id,
+        'ignored': ignored,
+      });
+      await l.load();
+      await refresh(preserveChoices: true);
+    } catch (e) {
+      if (mounted) setState(() => error = '$e');
+    } finally {
+      l.saving = false;
+      l.changed();
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -235,7 +277,7 @@ class _SyncPageState extends State<SyncPage> {
                   dataRowMinHeight: 52,
                   dataRowMaxHeight: 64,
                   columns: const [
-                    DataColumn(label: Text('Use')),
+                    DataColumn(label: Text('Use / ignore')),
                     DataColumn(label: Text('PayPal payment')),
                     DataColumn(label: Text('Amount')),
                     DataColumn(label: Text('Bank movement')),
@@ -263,20 +305,33 @@ class _SyncPageState extends State<SyncPage> {
     return DataRow(
       cells: [
         DataCell(
-          Checkbox(
-            value: selected != null,
-            onChanged: busy
-                ? null
-                : (v) {
-                    if (v == false) {
-                      setState(() => choices.remove(o['id']));
-                    } else if (bank != null &&
-                        !choices.containsValue(bank['id'])) {
-                      setState(() => choices[o['id']] = bank['id']);
-                    } else {
-                      choose(row);
-                    }
-                  },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Checkbox(
+                value: selected != null,
+                onChanged: busy || l.syncing
+                    ? null
+                    : (v) {
+                        if (v == false) {
+                          setState(() => choices.remove(o['id']));
+                        } else if (bank != null &&
+                            !choices.containsValue(bank['id'])) {
+                          setState(() => choices[o['id']] = bank['id']);
+                        } else {
+                          choose(row);
+                        }
+                      },
+              ),
+              IconButton(
+                key: ValueKey('ignore-paypal-${o['id']}'),
+                tooltip: 'Ignore PayPal payment',
+                onPressed: busy || l.syncing
+                    ? null
+                    : () => setIgnored(o['id'], true),
+                icon: const Icon(Icons.visibility_off_outlined),
+              ),
+            ],
           ),
         ),
         DataCell(
@@ -334,7 +389,7 @@ class _SyncPageState extends State<SyncPage> {
         DataCell(
           IconButton(
             tooltip: 'Find / change bank movement',
-            onPressed: busy ? null : () => choose(row),
+            onPressed: busy || l.syncing ? null : () => choose(row),
             icon: const Icon(Icons.search),
           ),
         ),
@@ -357,6 +412,29 @@ class _SyncPageState extends State<SyncPage> {
         Text(l.syncProgress ?? 'Syncing…'),
       ],
       const SizedBox(height: 12),
+      if (!reviewing) ...[
+        FilledButton.icon(
+          key: const ValueKey('sync-everything'),
+          onPressed: l.syncing || l.saving || busy
+              ? null
+              : () {
+                  awaitingSync = true;
+                  l.sync(target: 'all');
+                },
+          icon: const Icon(Icons.sync),
+          label: const Text('Sync everything'),
+        ),
+        const Text(
+          'Exchange rates → bank statements → PayPal',
+          style: TextStyle(fontSize: 12),
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (!l.syncing && l.syncResult != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(l.syncResult!),
+        ),
       Wrap(
         spacing: 12,
         crossAxisAlignment: WrapCrossAlignment.center,
@@ -463,7 +541,11 @@ class _SyncPageState extends State<SyncPage> {
         OutlinedButton.icon(
           key: const ValueKey('paypal-history-start'),
           icon: const Icon(Icons.date_range),
-          label: Text('Download from ${dateLabel(paypalFrom)}'),
+          label: Text(
+            customPaypalFrom
+                ? 'Download from ${dateLabel(paypalFrom)}'
+                : 'Choose older history…',
+          ),
           onPressed: l.syncing
               ? null
               : () async {
@@ -483,14 +565,24 @@ class _SyncPageState extends State<SyncPage> {
                     helpText: 'Download PayPal payments from',
                   );
                   if (chosen != null && mounted) {
-                    setState(() => paypalFrom = chosen);
+                    setState(() {
+                      paypalFrom = chosen;
+                      customPaypalFrom = true;
+                    });
                   }
                 },
         ),
         const Text(
-          'Choose up to 7 years back. This PayPal connection currently appears to return about 1 year; older saved payments are kept.',
+          'Routine sync repeats the latest saved day for each PayPal account. Choose a date only for older history (up to 7 years, subject to bank limits). Saved payments are kept.',
           style: TextStyle(fontSize: 12),
         ),
+        if (customPaypalFrom)
+          TextButton(
+            onPressed: l.syncing
+                ? null
+                : () => setState(() => customPaypalFrom = false),
+            child: const Text('Use incremental sync'),
+          ),
         Wrap(
           spacing: 12,
           children: [
@@ -499,7 +591,12 @@ class _SyncPageState extends State<SyncPage> {
                   ? null
                   : () {
                       awaitingSync = true;
-                      l.sync(target: 'paypal', dateFrom: dateLabel(paypalFrom));
+                      l.sync(
+                        target: 'paypal',
+                        dateFrom: customPaypalFrom
+                            ? dateLabel(paypalFrom)
+                            : null,
+                      );
                     },
               child: const Text('Sync PayPal'),
             ),
@@ -523,13 +620,33 @@ class _SyncPageState extends State<SyncPage> {
           child: const Text('Back to sync sources'),
         ),
         const Text(
-          'Nothing is merged until you confirm. Previously confirmed pairs are hidden. Assign your PayPal account to its user in Preferences to match that user’s bank accounts.',
+          'Nothing is merged until you confirm. Ignore payments you cannot match to remove them from review; they stay saved with the ignored tag and can be restored below. Assign your PayPal account to its user in Preferences to match that user’s bank accounts.',
         ),
         const SizedBox(height: 12),
         FilledButton(
-          onPressed: busy || choices.isEmpty ? null : confirm,
+          onPressed: busy || l.syncing || choices.isEmpty ? null : confirm,
           child: Text('Confirm ${choices.length} selected'),
         ),
+        if (ignoredRows.isNotEmpty)
+          ExpansionTile(
+            key: const ValueKey('ignored-paypal-list'),
+            title: Text('Ignored (${ignoredRows.length})'),
+            subtitle: const Text('Excluded from review, matching and totals'),
+            children: [
+              for (final o in ignoredRows)
+                ListTile(
+                  title: Text(o['description']),
+                  subtitle: Text('${o['date']} · ${amount(o)} · ignored'),
+                  trailing: TextButton(
+                    key: ValueKey('restore-paypal-${o['id']}'),
+                    onPressed: busy || l.syncing
+                        ? null
+                        : () => setIgnored(o['id'], false),
+                    child: const Text('Restore'),
+                  ),
+                ),
+            ],
+          ),
         groupTable('exact', 'Exact amount and currency'),
         groupTable('fx', 'Different currency'),
         groupTable('unmatched', 'Unmatched or ambiguous'),

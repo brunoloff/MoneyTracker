@@ -35,6 +35,7 @@ class MoneyTrackerService {
     'syncing': false,
     'syncError': null,
     'syncProgress': null,
+    'syncResult': null,
   };
   Future<void>? _job;
   MoneyTrackerService(
@@ -255,16 +256,18 @@ class MoneyTrackerService {
       final target = path == '/api/paypal/sync'
           ? 'paypal'
           : body['target'] ?? 'banks';
-      if (!{'banks', 'paypal', 'rates', 'accounts'}.contains(target)) {
+      if (!{'banks', 'paypal', 'rates', 'accounts', 'all'}.contains(target) ||
+          years != null && target != 'banks') {
         invalid('Unknown sync source');
       }
-      final dateFrom = target == 'paypal'
+      final dateFrom = target == 'paypal' && body['dateFrom'] != null
           ? paypalStart(body['dateFrom'])
           : null;
       state.addAll({
         'syncing': true,
         'syncError': null,
         'syncProgress': 'Starting bank download…',
+        'syncResult': null,
         if (target == 'accounts') 'accountRefresh': null,
       });
       // A fresh zone prevents request staging from leaking into the worker job.
@@ -280,6 +283,7 @@ class MoneyTrackerService {
       '/api/tags': 'Edit payment tags',
       '/api/category': 'Change payment category',
       '/api/paypal/confirm': 'Confirm PayPal associations',
+      '/api/paypal/ignore': 'Change ignored PayPal payment',
       '/api/merge': 'Merge payments',
       '/api/unmerge': 'Unmerge payments',
       '/api/profiles': 'Edit users and accounts',
@@ -378,6 +382,8 @@ class MoneyTrackerService {
           await store.write('categories.json', data);
         case '/api/paypal/confirm':
           await paypal.confirm(body['pairs']);
+        case '/api/paypal/ignore':
+          await paypal.ignore(body['observationId'], body['ignored']);
         case '/api/merge':
           await store.merge(body['primaryId'], body['secondaryId']);
         case '/api/unmerge':
@@ -480,7 +486,48 @@ class MoneyTrackerService {
     String? dateFrom,
   ) async {
     void progress(String value) => state['syncProgress'] = value;
+    var stage = '';
     try {
+      if (target == 'all') {
+        final group = 'sync-all-${DateTime.now().microsecondsSinceEpoch}';
+        final completed = <String>[];
+        stage = 'Exchange rates';
+        progress('1/3 · Updating exchange rates…');
+        await journal.action(
+          'Sync everything',
+          () => paypal.downloadRates(
+            progress: (value) => progress('1/3 · $value'),
+          ),
+          group: group,
+        );
+        completed.add('Exchange rates updated');
+        if (store.bankSessions().any((s) => present(s['accounts']))) {
+          stage = 'Bank statements';
+          progress('2/3 · Updating bank statements…');
+          await journal.action(
+            'Sync everything',
+            () => banks.sync(progress: (value) => progress('2/3 · $value')),
+            group: group,
+          );
+          completed.add('Bank statements updated');
+        } else {
+          completed.add('Banks skipped (no connection)');
+        }
+        if (present(store.read('session-paypal.json', {})['accounts'])) {
+          stage = 'PayPal';
+          progress('3/3 · Updating PayPal…');
+          await journal.action(
+            'Sync everything',
+            () => paypal.sync(progress: (value) => progress('3/3 · $value')),
+            group: group,
+          );
+          completed.add('PayPal updated');
+        } else {
+          completed.add('PayPal skipped (no connection)');
+        }
+        state['syncResult'] = '${completed.join(' · ')}.';
+        return;
+      }
       final label = target == 'accounts'
           ? 'Refresh Enable Banking accounts'
           : target == 'rates'
@@ -510,7 +557,10 @@ class MoneyTrackerService {
       });
       state['syncError'] = null;
     } catch (e) {
-      state['syncError'] = e is FormatException ? e.message : e.toString();
+      final message = e is FormatException ? e.message : e.toString();
+      state['syncError'] = target == 'all'
+          ? '$stage failed: $message. Earlier completed steps were kept; later steps were not run.'
+          : message;
     } finally {
       state['syncing'] = false;
       state['syncProgress'] = null;
