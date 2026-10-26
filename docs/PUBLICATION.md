@@ -116,3 +116,42 @@ archives. SHA-256 checksums are:
 
 - Windows: `95e1ee338d7f44a3bcd4bfb9ced52190e194b8970e31b1ac294cd9a54fe67d7b`
 - Linux: `7f26634a3e3ab01b64d977d3b82fe1369434a5a4c03c46a17e9c609f2268edba`
+
+
+The [1.0.6 data-compatibility preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.6)
+keeps accounting data format v3 from 1.0.5 and the existing SQLite undo tables.
+It adds an explicit marker, registers the undo schema as `user_version=1`,
+backs up existing installations with verified receipts, and refuses unknown
+newer formats before writing. Financial JSON, native-key ciphertext and history
+rows/blobs are unchanged by registration. v1/v2/v3 imports retain their source;
+native imports use the source keyring key before re-encrypting with the target
+key. In-app receipts and packaged COMPATIBILITY.txt/JSON explain the transition,
+backup and downgrade limitations. AGENTS.md and a release-manifest test require
+future updates to state their compatibility impact explicitly.
+
+The earlier changes on 26 October 2026 are now documented as v2 (1.0.4, optional incremental
+sync fields and the Ignored tag) and v3 (1.0.5, special categories and borrowing
+groups). Those release pages were updated with explicit notices. They originally
+had no format markers and cannot enforce the new guard. See
+[data formats and recovery](DATA_FORMATS.md).
+
+[Run 40321955681](https://github.com/brunoloff/MoneyTracker/actions/runs/40321955681)
+built `e67cdc68ac000f1b524fe4252f9092ab74e4f20f`; each platform passed 330 core
+tests and 96 Flutter tests, both analyzers and release builds. Windows passed
+its extracted-package window, native-storage, format-manifest and clean-shutdown
+checks. Local Linux startup passed with both fresh and unversioned v1 data; the
+extracted CI Linux archive also registered legacy data without rewriting its
+payment file and verified its automatic backup. Rendered upgrade notices were
+checked at 390px and 1100px. Historical-format tests cover in-place upgrades,
+imports with different native keys, failed backups, complete backup restoration,
+pending recovery, future-version refusal, restart and Undo/Redo.
+
+A stable, isolated copy of existing native data was compared with the 1.0.5
+projection. Every displayed payment, stored data file and history row/blob was
+identical; backup integrity and Undo/Redo round-trip checks passed. Original
+live files remained unchanged. The audit copies and their receipts stay local;
+no private data was published. Public anonymous downloads were verified against
+the tested artifacts, including their compatibility manifests and checksums.
+
+- Windows SHA-256: `03b1d61ea1dfb24c263a76a9f2cf8016fd12a6daa05d01f39c095afabac2c4d7`
+- Linux SHA-256: `416d5e68efb12ba1150385730061dd1d243023de224916aeaaf387034ac060c3`
