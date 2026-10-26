@@ -14,6 +14,7 @@ const trackedFiles = {
   'ledger.json',
   'categories.json',
   'merges.json',
+  'borrowing-groups.json',
   'tags.json',
   'taxonomy.json',
   'profiles.json',

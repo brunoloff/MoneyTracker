@@ -6,6 +6,7 @@ import 'category_picker.dart';
 import 'rules_page.dart';
 import 'preferences_page.dart';
 import 'sync_page.dart';
+import 'borrowing_page.dart';
 
 const teal = Color(0xff008f84),
     muted = Color(0xff67758c),
@@ -20,6 +21,8 @@ IconData categoryIcon(String c) => switch (c) {
   'Health' => Icons.favorite_border,
   'Salary' || 'Other income' => Icons.work_outline,
   'Transfer' => Icons.swap_horiz,
+  borrowingCategory => Icons.account_tree_outlined,
+  'Ignored' => Icons.visibility_off_outlined,
   _ => Icons.more_horiz,
 };
 
@@ -465,7 +468,7 @@ class _DashboardState extends State<Dashboard>
       ),
       const SizedBox(height: 6),
       const Text(
-        'Totals use booked payments. Transfers and ignored payments are excluded; refunds count as income. Categories are suggestions until you review them.',
+        'Totals use booked payments. Transfers, Ignored, and Borrowing and Deposits are excluded; refunds count as income. Categories are suggestions until you review them.',
         style: TextStyle(color: muted, fontSize: 12),
       ),
       const SizedBox(height: 24),
@@ -870,50 +873,69 @@ class _DashboardState extends State<Dashboard>
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
-            child: Tooltip(
-              message:
-                  'Sorts all matching payments. Amount uses size, ignoring the income/expense sign.',
-              child: SizedBox(
-                width: 240,
-                child: DropdownButtonFormField<String>(
-                  key: const ValueKey('payment-sort'),
-                  initialValue: l.paymentSort,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Sort payments'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'name_asc',
-                      child: Text('Name: A–Z'),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('manage-borrowing'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BorrowingPage(ledger: l),
                     ),
-                    DropdownMenuItem(
-                      value: 'name_desc',
-                      child: Text('Name: Z–A'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'date_desc',
-                      child: Text('Date: newest first'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'date_asc',
-                      child: Text('Date: oldest first'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'amount_desc',
-                      child: Text('Amount: largest first'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'amount_asc',
-                      child: Text('Amount: smallest first'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    limit = 40;
-                    l.paymentSort = value;
-                    l.changed();
-                  },
+                  ),
+                  icon: const Icon(Icons.account_tree_outlined),
+                  label: const Text(borrowingCategory),
                 ),
-              ),
+                Tooltip(
+                  message:
+                      'Sorts all matching payments. Amount uses size, ignoring the income/expense sign.',
+                  child: SizedBox(
+                    width: 240,
+                    child: DropdownButtonFormField<String>(
+                      key: const ValueKey('payment-sort'),
+                      initialValue: l.paymentSort,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Sort payments',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'name_asc',
+                          child: Text('Name: A–Z'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'name_desc',
+                          child: Text('Name: Z–A'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'date_desc',
+                          child: Text('Date: newest first'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'date_asc',
+                          child: Text('Date: oldest first'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'amount_desc',
+                          child: Text('Amount: largest first'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'amount_asc',
+                          child: Text('Amount: smallest first'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        limit = 40;
+                        l.paymentSort = value;
+                        l.changed();
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -1491,6 +1513,22 @@ class _DashboardState extends State<Dashboard>
                   style: const TextStyle(color: muted),
                 ),
                 const SizedBox(height: 12),
+                if (p.settlementGroupId != null)
+                  TextButton.icon(
+                    key: const ValueKey('view-borrowing-group'),
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: const Text('View borrowing group'),
+                    onPressed: busy
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            showBorrowingGroup(
+                              context,
+                              l,
+                              p.settlementGroupId!,
+                            );
+                          },
+                  ),
                 _addRuleButton(p, ctx, busy),
                 const SizedBox(height: 24),
                 const Text('Choose a category'),
@@ -1504,7 +1542,7 @@ class _DashboardState extends State<Dashboard>
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Salary sets the start of your pay period. Transfers stay in the list but do not count as spending or income.',
+                  'Salary starts your pay period. Transfers, Ignored, and Borrowing and Deposits stay in the list but do not count as spending or income.',
                   style: TextStyle(color: muted, fontSize: 12),
                 ),
                 const SizedBox(height: 24),
@@ -1534,22 +1572,41 @@ class _DashboardState extends State<Dashboard>
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  icon: Icon(p.merged ? Icons.link_off : Icons.link),
-                  label: Text(
-                    p.merged ? 'Undo merge' : 'Merge matching payment',
+                if (l.canGroupBorrowing(p))
+                  TextButton.icon(
+                    icon: const Icon(Icons.join_inner),
+                    label: const Text('Group with advances or repayments'),
+                    onPressed: busy
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => BorrowingPage(
+                                  ledger: l,
+                                  initialPaymentId: p.id,
+                                ),
+                              ),
+                            );
+                          },
                   ),
-                  onPressed: busy
-                      ? null
-                      : () async {
-                          Navigator.pop(ctx);
-                          if (p.merged) {
-                            await l.reconcile('/api/unmerge', {'id': p.id});
-                          } else {
-                            await _merge(p);
-                          }
-                        },
-                ),
+                if (p.settlementGroupId == null)
+                  TextButton.icon(
+                    icon: Icon(p.merged ? Icons.link_off : Icons.link),
+                    label: Text(
+                      p.merged ? 'Undo merge' : 'Merge matching payment',
+                    ),
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            Navigator.pop(ctx);
+                            if (p.merged) {
+                              await l.reconcile('/api/unmerge', {'id': p.id});
+                            } else {
+                              await _merge(p);
+                            }
+                          },
+                  ),
                 const SizedBox(height: 16),
                 const Text(
                   'Purchase details',
@@ -1603,6 +1660,8 @@ class _DashboardState extends State<Dashboard>
             .where(
               (p) =>
                   l.includesPayment(p) &&
+                  p.settlementGroupId == null &&
+                  p.currency == primary.currency &&
                   p.id != primary.id &&
                   p.amount == primary.amount &&
                   p.status == primary.status,

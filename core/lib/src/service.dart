@@ -11,6 +11,7 @@ import 'paypal.dart';
 import 'provider.dart';
 import 'sync.dart';
 import 'xlsx_import.dart';
+import '../special_categories.dart';
 
 class ServiceResponse {
   final int status;
@@ -287,6 +288,8 @@ class MoneyTrackerService {
       '/api/paypal/ignore-unmatched': 'Ignore unmatched PayPal payments',
       '/api/merge': 'Merge payments',
       '/api/unmerge': 'Unmerge payments',
+      '/api/borrowing/create': 'Group borrowing payments',
+      '/api/borrowing/delete': 'Delete borrowing group',
       '/api/profiles': 'Edit users and accounts',
       '/api/preferences': 'Change preferences',
     };
@@ -374,7 +377,7 @@ class MoneyTrackerService {
           if (rows.isEmpty || !store.categoryIds.contains(category)) {
             invalid('Invalid payment or category');
           }
-          if ({'Salary', 'Other income'}.contains(store.roots[category]) &&
+          if (incomeCategories.contains(store.roots[category]) &&
               rows.first['amount'] <= 0) {
             invalid('Income category requires an incoming payment');
           }
@@ -391,6 +394,10 @@ class MoneyTrackerService {
           await store.merge(body['primaryId'], body['secondaryId']);
         case '/api/unmerge':
           await store.unmerge(body['id']);
+        case '/api/borrowing/create':
+          await store.createBorrowingGroup(body);
+        case '/api/borrowing/delete':
+          await store.deleteBorrowingGroup(body['id']);
         case '/api/profiles':
           final accounts = (store.snapshot()['accounts'] as List)
                   .map((a) => a['id'])

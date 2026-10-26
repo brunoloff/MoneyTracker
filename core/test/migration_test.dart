@@ -128,8 +128,20 @@ void main() {
           await service.store.write(e.key, e.value);
         }
       });
-      expect(service.store.snapshot(), fixture['expected']);
-      expect(service.store.snapshot(client: true), fixture['client']);
+      for (final entry in [(false, 'expected'), (true, 'client')]) {
+        final actual = service.store.snapshot(client: entry.$1);
+        final taxonomy = actual.remove('taxonomy');
+        final expected = Map<String, dynamic>.from(fixture[entry.$2])
+          ..remove('taxonomy');
+        expect(actual, expected);
+        // New reserved categories augment old installations; existing names,
+        // colors, hierarchy, tags and every transaction remain unchanged.
+        expect(
+          taxonomy['categories'],
+          containsAll(fixture[entry.$2]['taxonomy']['categories']),
+        );
+        expect(taxonomy['tags'], fixture[entry.$2]['taxonomy']['tags']);
+      }
       expect(
         service.store.read('ledger.json', {}),
         fixture['files']['ledger.json'],
@@ -466,10 +478,7 @@ void main() {
         true,
       );
       // The overlap includes unresolved pending rows, so an omitted pending row is removed.
-      expect(
-        rows.any((r) => r['id'] == 'old-pending'),
-        false,
-      );
+      expect(rows.any((r) => r['id'] == 'old-pending'), false);
       await service.request('POST', '/api/sync');
       await service.waitForSync();
       expect(service.store.snapshot()['transactions'].length, rows.length);

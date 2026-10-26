@@ -18,8 +18,9 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
   @override
   void initState() {
     super.initState();
-    cats = (jsonDecode(jsonEncode(widget.ledger.categorySettings)) as List)
-        .cast<Map<String, dynamic>>();
+    cats =
+        (jsonDecode(jsonEncode(widget.ledger.orderedCategorySettings)) as List)
+            .cast<Map<String, dynamic>>();
     for (final c in cats) {
       c['color'] ??= '93A0B4';
     }
@@ -71,7 +72,7 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
 
   Future<void> deleteCategory(Map<String, dynamic> c) async {
     String? destination;
-    final income = {'Salary', 'Other income'};
+    final income = incomeCategories;
     final sourceIncome = income.contains(c['parent'] ?? c['id']);
     final targets = cats
         .where(
@@ -157,6 +158,7 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
 
   Widget _categoryEditor(Map<String, dynamic> c) {
     final locked = c['id'] == 'Uncategorized';
+    final special = isSpecialCategory(c['id']);
     final hasChildren = cats.any((p) => p['parent'] == c['id']);
     return Padding(
       key: ValueKey(c['id']),
@@ -281,7 +283,7 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
                     ),
                 ],
               ),
-            if (!locked)
+            if (!special)
               IconButton(
                 tooltip: hasChildren
                     ? 'Remove subcategories before deleting'
@@ -305,7 +307,7 @@ class _TaxonomySettingsState extends State<TaxonomySettings> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Edit names directly; click a color to change it. Use + to add a subcategory. Delete categories without subcategories and choose where their transactions go. Uncategorized stays fixed.',
+        'Edit names directly; click a color to change it. Use + to add a subcategory. Special categories keep their accounting roles and cannot be deleted. Uncategorized stays fixed.',
       ),
       ExpansionTile(
         title: const Text('Manage categories and subcategories'),

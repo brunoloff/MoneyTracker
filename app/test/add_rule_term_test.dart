@@ -170,8 +170,20 @@ void main() {
         if (target != 'tag-rule') {
           tester.state<ScrollableState>(dialogScroll).position.jumpTo(0);
           await tester.pumpAndSettle();
+          // The picker is one tall Wrap inside a list item. Scroll physically:
+          // ensureVisible may reveal the Wrap instead of its individual chip.
+          for (
+            var i = 0;
+            i < 20 && choice.hitTestable().evaluate().isEmpty;
+            i++
+          ) {
+            await tester.drag(dialogScroll, const Offset(0, -120));
+            await tester.pumpAndSettle();
+          }
+        } else {
+          await tester.ensureVisible(choice);
         }
-        await tester.ensureVisible(choice);
+        expect(choice.hitTestable(), findsOneWidget);
         await tester.tap(choice);
         await tester.pumpAndSettle();
         expect(saved, isNull);

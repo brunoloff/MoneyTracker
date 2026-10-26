@@ -212,7 +212,7 @@ class _RulesPageState extends State<RulesPage> {
           'Lower priority numbers win category conflicts. Manual categories take precedence. Matching tag rules always add their tags.',
         ),
         const SizedBox(height: 16),
-        for (final parent in l.categorySettings.where(
+        for (final parent in l.orderedCategorySettings.where(
           (c) => c['parent'] == null,
         ))
           Card(
@@ -221,7 +221,7 @@ class _RulesPageState extends State<RulesPage> {
             child: Column(
               children: [
                 categoryRow(parent),
-                for (final child in l.categorySettings.where(
+                for (final child in l.orderedCategorySettings.where(
                   (c) => c['parent'] == parent['id'],
                 ))
                   categoryRow(child, child: true),

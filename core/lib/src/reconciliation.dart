@@ -11,7 +11,9 @@ List<Map<String, dynamic>> suggestMatches(
   if (days < 0 || days > 31) invalid('Date window must be 0 to 31 days');
   final index = <String, List<Map<String, dynamic>>>{};
   for (final payment in payments) {
-    if (payment['status'] != 'BOOK') continue;
+    if (payment['status'] != 'BOOK' || payment['settlementGroupId'] != null) {
+      continue;
+    }
     final sources = present(payment['sourceRecords'])
         ? payment['sourceRecords'] as List
         : [payment];

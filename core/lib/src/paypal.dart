@@ -273,7 +273,7 @@ class Paypal {
         links = store.read('paypal-associations.json', {}),
         tags = store.read('tags.json', {}),
         owners = store.read('profiles.json', {})['accountUsers'] ?? {};
-    final snapshot = store.snapshot(),
+    final snapshot = store.snapshot(includeGroups: false),
         banks = snapshot['transactions'],
         nicknames = snapshot['profiles']['accountNicknames'] ?? {},
         labels = {

@@ -1,6 +1,8 @@
 import 'classification.dart';
 import 'compat.dart';
 import 'journal.dart';
+import 'package:uuid/uuid.dart';
+import '../special_categories.dart';
 
 String stableAccountId(Map account, [String source = 'CGD']) {
   final identity = present(account['identification_hash'])
@@ -120,16 +122,23 @@ class LedgerStore {
     final config = Map<String, dynamic>.from(
       read('taxonomy.json', defaultTaxonomy()),
     );
-    if (!(config['categories'] as List).any(
-      (c) => c['id'] == 'Uncategorized',
-    )) {
-      config['categories'].insert(0, {
-        'id': 'Uncategorized',
-        'name': 'Uncategorized',
+    for (final id in specialCategoryOrder) {
+      if ((config['categories'] as List).any((c) => c['id'] == id)) continue;
+      final names = (config['categories'] as List)
+          .map((c) => c['name'].toString().toLowerCase())
+          .toSet();
+      var name = id, suffix = 1;
+      while (names.contains(name.toLowerCase())) {
+        name = '$id (special ${suffix++})';
+      }
+      config['categories'].add({
+        'id': id,
+        'name': name,
         'parent': null,
-        'color': '93A0B4',
+        'color': categoryColors[id],
       });
     }
+    config['categories'] = orderedCategories(maps(config['categories']));
     return config;
   }
 
@@ -165,7 +174,10 @@ class LedgerStore {
     ];
   }
 
-  Map<String, dynamic> snapshot({bool client = false}) {
+  Map<String, dynamic> snapshot({
+    bool client = false,
+    bool includeGroups = true,
+  }) {
     final config = taxonomy(), rootCategories = roots;
     final result = Map<String, dynamic>.from(
       read('ledger.json', {
@@ -272,16 +284,127 @@ class LedgerStore {
             'balance': null,
           },
     ]);
+    final borrowingGroups = <Map<String, dynamic>>[];
+    if (includeGroups) {
+      final stored = maps(read('borrowing-groups.json', []));
+      final byId = {for (final row in payments) row['id']: row};
+      final consumed = <String, String>{};
+      final waiting = <String>{};
+      final projected = <String, Map<String, dynamic>>{};
+      final definitions = {for (final g in stored) g['id']: g};
+      Map<String, dynamic> project(Map<String, dynamic> g) {
+        final id = g['id'] as String;
+        if (projected.containsKey(id)) return projected[id]!;
+        if (!waiting.add(id)) invalid('Borrowing groups contain a cycle');
+        final members = <dynamic>[];
+        for (final memberId in g['memberIds']) {
+          if (consumed.containsKey(memberId) && consumed[memberId] != id) {
+            invalid('A payment belongs to more than one borrowing group');
+          }
+          consumed[memberId] = id;
+          if (!byId.containsKey(memberId)) {
+            final parent = stored
+                .where((p) => p['leftoverId'] == memberId)
+                .firstOrNull;
+            if (parent == null) {
+              invalid('Borrowing group has a missing payment');
+            }
+            project(parent);
+          }
+          members.add(byId[memberId]);
+        }
+        final amount = members.fold<int>(
+          0,
+          (sum, p) => sum + (p['amount'] as int),
+        );
+        final row = <String, dynamic>{
+          'id': g['leftoverId'],
+          'accountId': g['accountId'],
+          'accountIds': [g['accountId']],
+          'date': g['date'],
+          'amount': amount,
+          'currency': g['currency'],
+          'description': g['description'],
+          'category': borrowingCategory,
+          'source': 'Borrowing group',
+          'status': 'BOOK',
+          'reviewed': true,
+          'settlementGroupId': id,
+          'merged': false,
+          'purchaseDetails': <dynamic>[],
+          'sourceRecords': <dynamic>[],
+          'tags': tags[g['leftoverId']] ?? <dynamic>[],
+          'classificationRule': null,
+        };
+        row['sourceRecords'] = [
+          {
+            'id': row['id'],
+            'kind': 'borrowing_balance',
+            'institution': 'Borrowing group',
+            'description': row['description'],
+            'accountId': row['accountId'],
+            'date': row['date'],
+            'amount': amount,
+            'currency': row['currency'],
+          },
+        ];
+        for (final rule in categoryRules) {
+          if (ruleMatches(rule, row, rootCategories)) {
+            row['category'] = rule['category'];
+            row['classificationRule'] = {
+              'id': rule['id'],
+              'name': rule['name'],
+            };
+            row['reviewed'] = false;
+            break;
+          }
+        }
+        for (final rule in tagRules) {
+          if (ruleMatches(rule, row, rootCategories)) {
+            row['tags'] = <dynamic>{...row['tags'], ...rule['tags']}.toList()
+              ..sort();
+          }
+        }
+        if (overrides.containsKey(row['id'])) {
+          row['category'] = overrides[row['id']];
+          row['classificationRule'] = null;
+          row['reviewed'] = true;
+        }
+        byId[row['id']] = row;
+        projected[id] = {...g, 'transactions': members, 'leftover': row};
+        waiting.remove(id);
+        return projected[id]!;
+      }
+
+      for (final g in definitions.values) {
+        project(g);
+      }
+      for (final g in stored) {
+        borrowingGroups.add({
+          ...projected[g['id']]!,
+          'usedBy': consumed[g['leftoverId']],
+          'canDelete': !consumed.containsKey(g['leftoverId']),
+        });
+      }
+      payments.clear();
+      payments.addAll(byId.values.where((p) => !consumed.containsKey(p['id'])));
+    }
     result.addAll({
       'taxonomy': config,
       'rules': rules,
       'transactions': payments,
       'profiles': read('profiles.json', {'users': [], 'accountUsers': {}}),
       'preferences': read('preferences.json', {'period': 'month'}),
+      if (borrowingGroups.isNotEmpty) 'borrowingGroups': borrowingGroups,
     });
     if (client) {
       result.remove('fileImports');
-      for (final row in payments) {
+      final allRows = <dynamic>[
+        ...payments,
+        for (final g in borrowingGroups) ...g['transactions'],
+        for (final g in borrowingGroups) g['leftover'],
+      ];
+      for (final row in allRows) {
         row.remove('sourceRecord');
         for (final source in row['sourceRecords']) {
           for (final key in [
@@ -301,6 +424,87 @@ class LedgerStore {
     return result;
   }
 
+  Future<void> createBorrowingGroup(Map body) async {
+    final ids = body['memberIds'], description = body['description'];
+    if (ids is! List ||
+        ids.length < 2 ||
+        ids.any((id) => id is! String) ||
+        ids.toSet().length != ids.length) {
+      invalid('Choose at least two different payments');
+    }
+    if (description is! String ||
+        description.trim().isEmpty ||
+        description.trim().length > 200) {
+      invalid('Give the group a name (up to 200 characters)');
+    }
+    final available = {for (final p in snapshot()['transactions']) p['id']: p},
+        rootCategories = roots;
+    final members = <dynamic>[];
+    for (final id in ids) {
+      final p = available[id];
+      if (p == null ||
+          rootCategories[p['category']] != borrowingCategory ||
+          p['status'] != 'BOOK' ||
+          (p['tags'] as List).contains('ignored')) {
+        invalid(
+          'Choose available, booked Borrowing and Deposits payments without the Ignored tag',
+        );
+      }
+      members.add(p);
+    }
+    final currencies = members.map((p) => p['currency']).toSet();
+    if (currencies.length != 1) invalid('Group payments in the same currency');
+    final owners = read('profiles.json', {})['accountUsers'] ?? {};
+    if (members.map((p) => owners[p['accountId']]).toSet().length != 1) {
+      invalid('Group payments belonging to the same person');
+    }
+    final account = body['accountId'];
+    if (!members.any((p) => p['accountId'] == account)) {
+      invalid('Choose one of the group’s accounts for the leftover');
+    }
+    final id = const Uuid().v4();
+    final dates = members.map((p) => p['date'] as String).toList()..sort();
+    await journal.action('Group borrowing payments', () async {
+      final overrides = read('categories.json', {}) as Map;
+      overrides['borrowing-leftover-$id'] = borrowingCategory;
+      await write('categories.json', overrides);
+      await write('borrowing-groups.json', [
+        ...read('borrowing-groups.json', []),
+        {
+          'id': id,
+          'leftoverId': 'borrowing-leftover-$id',
+          'description': description.trim(),
+          'memberIds': ids,
+          'accountId': account,
+          'currency': currencies.single,
+          'date': dates.last,
+        },
+      ]);
+    });
+  }
+
+  Future<void> deleteBorrowingGroup(dynamic id) async {
+    final groups = maps(read('borrowing-groups.json', []));
+    final group = groups.where((g) => g['id'] == id).firstOrNull;
+    if (group == null) invalid('Group no longer available; reload first');
+    if (groups.any(
+      (g) => (g['memberIds'] as List).contains(group['leftoverId']),
+    )) {
+      invalid('Delete the later group using this leftover first');
+    }
+    await journal.action('Delete borrowing group', () async {
+      await write(
+        'borrowing-groups.json',
+        groups.where((g) => g['id'] != id).toList(),
+      );
+      for (final file in ['categories.json', 'tags.json']) {
+        final saved = read(file, {}) as Map;
+        saved.remove(group['leftoverId']);
+        await write(file, saved);
+      }
+    });
+  }
+
   Future<void> merge(dynamic primary, dynamic secondary) async {
     if (primary == secondary) invalid('Choose two different payments');
     final payments = {
@@ -310,6 +514,9 @@ class LedgerStore {
       invalid('Payment no longer available; reload first');
     }
     final a = payments[primary], b = payments[secondary];
+    if (a['settlementGroupId'] != null || b['settlementGroupId'] != null) {
+      invalid('A virtual leftover cannot be merged as a duplicate payment');
+    }
     if (['amount', 'currency', 'status'].any((k) => a[k] != b[k])) {
       invalid(
         'This version merges only equal amounts, currency and status; splits and fees need separate reconciliation',
@@ -326,6 +533,11 @@ class LedgerStore {
   }
 
   Future<void> unmerge(dynamic id) async {
+    if (!(snapshot()['transactions'] as List).any(
+      (p) => p['id'] == id && p['settlementGroupId'] == null,
+    )) {
+      invalid('Payment is grouped or no longer available');
+    }
     final groups = read('merges.json', {});
     groups.remove(id);
     await write('merges.json', groups);
@@ -353,9 +565,9 @@ class LedgerStore {
       invalid('Choose a destination for every deleted category');
     }
     for (final e in (transfers).entries) {
-      if (e.key == 'Uncategorized' || !remaining.contains(e.value)) {
+      if (isSpecialCategory(e.key) || !remaining.contains(e.value)) {
         invalid(
-          'Choose an existing destination; Uncategorized cannot be deleted',
+          'Choose an existing destination; special categories cannot be deleted',
         );
       }
       if ((config['categories'] as List).any((c) => c['parent'] == e.key)) {
@@ -399,8 +611,8 @@ class LedgerStore {
       if (r['kind'] == 'category') r['name'] = names[r['category']];
     }
     for (final e in transfers.entries) {
-      if ({'Salary', 'Other income'}.contains(newRoots[e.value]) &&
-          !{'Salary', 'Other income'}.contains(old[e.key]['parent'] ?? e.key)) {
+      if (incomeCategories.contains(newRoots[e.value]) &&
+          !incomeCategories.contains(old[e.key]['parent'] ?? e.key)) {
         invalid('Choose a non-income destination for this category');
       }
     }

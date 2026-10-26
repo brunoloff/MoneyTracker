@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'casefold.dart';
 import 'compat.dart';
+import '../special_categories.dart';
 
 const categoryColors = {
   'Food': '00A5AA',
@@ -16,12 +17,14 @@ const categoryColors = {
   'Other income': '008F84',
   'Transfer': '93A0B4',
   'Uncategorized': '93A0B4',
+  'Ignored': '93A0B4',
+  borrowingCategory: '9870ED',
 };
 Map<String, dynamic> defaultTaxonomy() => {
-  'categories': [
+  'categories': orderedCategories([
     for (final e in categoryColors.entries)
       {'id': e.key, 'name': e.key, 'parent': null, 'color': e.value},
-  ],
+  ]),
   'tags': <dynamic>[],
 };
 Never invalid(String message) => throw FormatException(message);
@@ -108,7 +111,7 @@ Map<String, dynamic> validateRule(
 bool ruleMatches(Map rule, Map payment, [Map<dynamic, dynamic>? roots]) {
   if (!enabled(rule)) return false;
   final category = roots?[rule['category']] ?? rule['category'];
-  if ({'Salary', 'Other income'}.contains(category) && payment['amount'] <= 0) {
+  if (incomeCategories.contains(category) && payment['amount'] <= 0) {
     return false;
   }
   final sources = present(payment['sourceRecords'])
@@ -281,11 +284,11 @@ Map<String, dynamic> validateTaxonomy(
       tags = entries(config['tags']);
   final ids = categories.map((c) => c['id']).toSet(),
       tagIds = tags.map((t) => t['id']).toSet();
-  if (!ids.contains('Uncategorized') ||
+  if (!ids.containsAll(specialCategoryOrder) ||
       !ids.containsAll(usedCategories) ||
       !tagIds.containsAll(usedTags)) {
     invalid(
-      'Keep Uncategorized and transfer categories in use before deleting; used tags cannot be deleted',
+      'Keep special categories; transfer categories in use before deleting; used tags cannot be deleted',
     );
   }
   final byId = {for (final c in categories) c['id']: c};

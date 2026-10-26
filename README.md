@@ -99,6 +99,10 @@ The legacy browser backend remains available separately under `server/` and
 - In PayPal review, use the eye-with-a-line icon to Ignore an unmatched payment. It is kept with the special `ignored` tag, hidden from matching/review, and excluded from totals. Use Ignore all unmatched / ambiguous to clear the remaining unselected rows at once; exact, FX and manually selected matches are left alone. Expand Ignored to Restore items, or use one Undo to reverse the bulk action. Ignoring preserves the other pending review choices and stays remembered after sync and restart. The tag can also be applied to bank payments; ignored entries do not anchor salary periods or count toward income averages.
 
 - Click a payment to correct its category or choose Salary / Transfer.
+- Special categories appear first in category selectors: Uncategorized, Salary, Ignored, Borrowing and Deposits, Transfer, and Other income. Their stable IDs preserve their accounting behavior when renamed. Special categories cannot be deleted or moved under another category; Uncategorized also keeps its fixed name and color. Ignored works as a category as well as the existing exclusion tag.
+- Mark advances, deposits, loans to others, and expected reimbursements as Borrowing and Deposits. Both outgoing and incoming amounts in this category (or its subcategories) stay outside spending, income, Net and historical income averages. Uncategorized remains part of ordinary accounting; confirmed Salary anchors salary periods; Other income and Salary require positive amounts.
+- Overview → Borrowing and Deposits opens grouping across all dates for the selected person/account. Select two or more booked payments, name the group, and choose an account for the leftover. The members disappear from the main list and their signed sum becomes a virtual payment, dated on the latest member’s date. For example, −€100 and −€20 plus a €90 repayment produce a −€30 leftover. It starts excluded in Borrowing and Deposits; change its category to count it as ordinary spending/income, or group it with a later repayment. Cross-account groups require the same account owner; the leftover belongs to one chosen account.
+- Open a leftover and choose View borrowing group to inspect its members. Leftovers cannot be deleted directly or merged as duplicate bank records. Delete the group to restore its individual members. If a later group uses the leftover, delete that later group first. Group creation, deletion, categories and tags support Undo/Redo and persist through restart and data import. Original bank records remain intact; corrected bank amounts recalculate the balance, including nested groups.
 - The top bar contains Overview, Rules, and Preferences, plus a saved user selector.
 - Preferences lets you add/rename/remove users and assign each account to one user. Save assignments to apply them. All users includes unassigned accounts; individual users filter payments, totals, and salary periods. These are local views sharing classification rules, not separate login accounts.
 - Overview supports By month / By salary with a 1–24 period count. The range ends at the displayed month or salary segment; arrows slide it one period. Choose Total or Monthly average for multiple periods. Calendar-month averages divide by selected months (including the current partial month); salary averages divide by calendar-month equivalents of days covered. Only summary/chart amounts are averaged, never individual payments. Ranges before imported history show a warning.
@@ -114,7 +118,9 @@ The legacy browser backend remains available separately under `server/` and
 Android/iOS remain scaffolds, rather than supported releases. Browser builds
 still compile and use the retained legacy HTTP backend; desktop requests go
 directly to the Dart service in a background isolate without opening an HTTP
-API server.
+API server. Borrowing groups and the reserved special-category behavior are
+implemented in the native Dart service; the retained legacy Python backend
+does not support these new operations.
 
 ```sh
 cd core

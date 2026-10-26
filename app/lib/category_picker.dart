@@ -10,6 +10,7 @@ Color categoryColor(String c) => switch (c) {
   'Rent' => const Color(0xffcf769b),
   'Health' => const Color(0xffd8666c),
   'Salary' || 'Other income' => const Color(0xff008f84),
+  borrowingCategory => const Color(0xff9870ed),
   _ => const Color(0xff93a0b4),
 };
 
@@ -58,7 +59,7 @@ class CategoryPicker extends StatelessWidget {
       for (final parent in ledger.categoryIds.where(
         (id) =>
             ledger.mainCategory(id) == id &&
-            (allowIncome || !['Salary', 'Other income'].contains(id)),
+            (allowIncome || !incomeCategories.contains(id)),
       ))
         Column(
           mainAxisSize: MainAxisSize.min,

@@ -2,9 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:money_tracker_core/special_categories.dart';
+export 'package:money_tracker_core/special_categories.dart';
 
 const categories = [
   'Uncategorized',
+  'Salary',
+  'Ignored',
+  borrowingCategory,
+  'Transfer',
+  'Other income',
   'Food',
   'Shopping',
   'Travel',
@@ -14,9 +21,6 @@ const categories = [
   'Health',
   'Entertainment',
   'Other',
-  'Salary',
-  'Other income',
-  'Transfer',
 ];
 const months = [
   'January',
@@ -49,7 +53,7 @@ String shortDate(DateTime date) =>
     '${date.day} ${months[date.month - 1].substring(0, 3)} ${date.year}';
 
 class Payment {
-  final String id, accountId, description, category, source, status;
+  final String id, accountId, description, category, source, status, currency;
   final int amount;
   final DateTime date;
   final bool reviewed;
@@ -58,6 +62,7 @@ class Payment {
   final List<String> accountIds, tags;
   final bool merged;
   final String? ruleName;
+  final String? settlementGroupId;
   Payment.fromJson(Map<String, dynamic> j)
     : id = j['id'],
       accountId = j['accountId'],
@@ -65,6 +70,8 @@ class Payment {
       category = j['category'],
       source = j['source'],
       status = j['status'],
+      currency = j['currency'] ?? 'EUR',
+      settlementGroupId = j['settlementGroupId'],
       amount = j['amount'],
       date = DateTime.parse(j['date']),
       reviewed = j['reviewed'],
@@ -78,7 +85,22 @@ class Payment {
       tags = (j['tags'] as List? ?? []).cast<String>();
   bool get transfer => category == 'Transfer';
   bool get booked => status == 'BOOK';
-  bool get ignored => tags.contains('ignored');
+  bool get ignored => category == 'Ignored' || tags.contains('ignored');
+}
+
+class BorrowingGroup {
+  final String id, description;
+  final String? usedBy;
+  final List<Payment> members;
+  final Payment leftover;
+  BorrowingGroup.fromJson(Map<String, dynamic> j)
+    : id = j['id'],
+      description = j['description'],
+      usedBy = j['usedBy'],
+      members = (j['transactions'] as List)
+          .map((p) => Payment.fromJson(p))
+          .toList(),
+      leftover = Payment.fromJson(j['leftover']);
 }
 
 int? parsePrice(String text) {
@@ -107,6 +129,7 @@ class Ledger extends ChangeNotifier {
     month = DateTime(this.clock().year, this.clock().month);
   }
   List<Payment> payments = [];
+  List<BorrowingGroup> borrowingGroups = [];
   List<Map<String, dynamic>> accounts = [];
   List<Map<String, dynamic>> users = [];
   Map<String, dynamic> accountUsers = {};
@@ -165,6 +188,9 @@ class Ledger extends ChangeNotifier {
     _searchText = Expando<String>();
     payments = (data['transactions'] as List)
         .map((j) => Payment.fromJson(j))
+        .toList();
+    borrowingGroups = (data['borrowingGroups'] as List? ?? [])
+        .map((g) => BorrowingGroup.fromJson(g))
         .toList();
     accounts = (data['accounts'] as List).cast<Map<String, dynamic>>();
     users = (data['profiles']?['users'] as List? ?? [])
@@ -340,8 +366,14 @@ class Ledger extends ChangeNotifier {
     changed();
   }
 
+  List<Map<String, dynamic>> get orderedCategorySettings =>
+      orderedCategories(categorySettings);
   List<String> get categoryIds =>
-      categorySettings.map((c) => c['id'] as String).toList();
+      orderedCategorySettings.map((c) => c['id'] as String).toList();
+  bool excludesFromAccounting(Payment p) =>
+      p.ignored || excludedCategories.contains(mainCategory(p.category));
+  bool canGroupBorrowing(Payment p) =>
+      p.booked && !p.ignored && mainCategory(p.category) == borrowingCategory;
   String categoryName(String id) => categorySettings.firstWhere(
     (c) => c['id'] == id,
     orElse: () => {'name': id},
@@ -576,7 +608,7 @@ class Ledger extends ChangeNotifier {
         if (p.date.isBefore(from) || !p.date.isBefore(until)) continue;
         rows.add(p);
         final main = mainCategory(p.category);
-        if (!p.booked || p.ignored || main == 'Transfer') continue;
+        if (!p.booked || excludesFromAccounting(p)) continue;
         if (p.amount < 0) {
           _spent -= p.amount;
           directTotals[p.category] = (directTotals[p.category] ?? 0) - p.amount;
@@ -777,9 +809,8 @@ class Ledger extends ChangeNotifier {
     var total = 0;
     for (final p in _selected) {
       if (p.booked &&
-          !p.ignored &&
+          !excludesFromAccounting(p) &&
           p.amount > 0 &&
-          mainCategory(p.category) != 'Transfer' &&
           !p.date.isBefore(from) &&
           p.date.isBefore(until)) {
         total += p.amount;
