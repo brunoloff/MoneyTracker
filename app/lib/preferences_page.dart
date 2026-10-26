@@ -6,6 +6,7 @@ import 'bank_connection.dart';
 import 'setup_page.dart';
 import 'spreadsheet_import.dart';
 import 'testing_help.dart';
+import 'data_format_panel.dart';
 
 class PreferencesPage extends StatefulWidget {
   final Ledger ledger;
@@ -75,6 +76,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
     'Payment matching',
     'Undo history',
     'Testing help',
+    'Data and updates',
   ];
   Widget _navigation(bool wide) {
     final buttons = [
@@ -125,6 +127,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
                 3 => _section3(),
                 4 => _matching(),
                 5 => _undoSettings(),
+                7 => DataFormatPanel(ledger: l),
                 _ => TextButton.icon(
                   onPressed: () => showTestingHelp(context),
                   icon: const Icon(Icons.help_outline),

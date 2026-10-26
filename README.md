@@ -22,6 +22,15 @@ Arrange each person's own Enable Banking application and key before meeting.
 
 ## Run the desktop app
 
+**Data compatibility:** current accounting format **v3**, with automatic import
+of **v1/v2/v3**; SQLite undo schema **v1**, tables and banking-key encryption
+unchanged. Version 1.0.6 adds explicit registration and verified backups without
+rewriting financial files. Every archive includes `COMPATIBILITY.txt` and
+`COMPATIBILITY.json`; see [formats, upgrade and recovery](docs/DATA_FORMATS.md).
+Releases before 1.0.6 do not enforce version checks, so use a compatible complete
+backup if downgrading. Preferences → Data and updates shows your actual format
+and the last upgrade/import receipt.
+
 MoneyTracker now runs as a standalone Flutter/Dart application on Linux and
 Windows. Python is not required for the desktop application.
 

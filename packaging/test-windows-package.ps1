@@ -10,7 +10,7 @@ $previousLegacy = $env:MONEYTRACKER_LEGACY_DIR
 try {
     Expand-Archive -LiteralPath $Archive -DestinationPath $bundle
     $executable = Join-Path $bundle 'money_tracker.exe'
-    foreach ($required in @('money_tracker.exe', 'flutter_windows.dll', 'data\icudtl.dat', 'data\flutter_assets')) {
+    foreach ($required in @('money_tracker.exe', 'flutter_windows.dll', 'data\icudtl.dat', 'data\flutter_assets', 'COMPATIBILITY.txt', 'COMPATIBILITY.json')) {
         if (!(Test-Path (Join-Path $bundle $required))) { throw "Package is missing $required" }
     }
     $env:MONEYTRACKER_DATA_DIR = $data
@@ -22,10 +22,13 @@ try {
         $process.Refresh()
         if ($process.HasExited) { throw "Packaged app exited during startup with code $($process.ExitCode)" }
         $windowReady = $process.MainWindowHandle -ne 0 -and $process.MainWindowTitle -eq 'MoneyTracker'
-        $serviceReady = Test-Path (Join-Path $data 'undo.sqlite3')
+        $serviceReady = (Test-Path (Join-Path $data 'undo.sqlite3')) -and (Test-Path (Join-Path $data 'data-format.json'))
     } while ((!$windowReady -or !$serviceReady) -and (Get-Date) -lt $deadline)
     if (!$windowReady) { throw 'Packaged app did not create its MoneyTracker window' }
     if (!$serviceReady) { throw 'Native data service did not initialize (check SQLite and system credential storage)' }
+    $format = Get-Content (Join-Path $data 'data-format.json') -Raw | ConvertFrom-Json
+    $compatibility = Get-Content (Join-Path $bundle 'COMPATIBILITY.json') -Raw | ConvertFrom-Json
+    if ($format.version -ne $compatibility.dataFormat -or $format.journalVersion -ne $compatibility.journalSchema) { throw 'Runtime data format disagrees with packaged compatibility information' }
     Start-Sleep -Seconds 3
     $process.Refresh()
     if ($process.HasExited) { throw 'Packaged app exited after initialization' }

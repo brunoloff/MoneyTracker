@@ -1,0 +1,13 @@
+{
+  "appVersion": "1.0.6+7",
+  "dataFormat": 3,
+  "previousReleaseDataFormat": 3,
+  "supportedDataFormats": [1, 2, 3],
+  "journalSchema": 1,
+  "sqliteTablesChanged": false,
+  "financialFilesRewritten": false,
+  "credentialEncryption": "MTK1 AES-GCM (unchanged)",
+  "change": "Accounting payload format unchanged from 1.0.5. Adds explicit data-format.json registration, SQLite user_version=1, verified backups and compatibility checks. Automatically registers older v1/v2 data as v3.",
+  "backup": "Before in-place registration, copy and verify the original data. Imports preserve the original folder.",
+  "downgrade": "Pre-1.0.6 apps cannot enforce version checks. Use a compatible complete pre-upgrade backup before downgrading. Pre-1.0.4 apps do not implement Ignored tags; pre-1.0.5 apps do not implement borrowing groups."
+}

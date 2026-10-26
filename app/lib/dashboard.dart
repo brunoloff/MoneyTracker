@@ -7,6 +7,7 @@ import 'rules_page.dart';
 import 'preferences_page.dart';
 import 'sync_page.dart';
 import 'borrowing_page.dart';
+import 'data_format_panel.dart';
 
 const teal = Color(0xff008f84),
     muted = Color(0xff67758c),
@@ -284,6 +285,7 @@ class _DashboardState extends State<Dashboard>
   Widget _content() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+      DataFormatPanel(ledger: l, notice: true),
       if (l.error != null)
         Padding(
           padding: const EdgeInsets.only(bottom: 16),

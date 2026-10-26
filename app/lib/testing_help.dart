@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:money_tracker_core/data_formats.dart';
 
-const appVersion = '1.0.5+6';
+const appVersion = '1.0.6+7';
 const buildRevision = String.fromEnvironment(
   'MONEYTRACKER_BUILD_REVISION',
   defaultValue: 'local build',
@@ -11,7 +12,8 @@ const buildRevision = String.fromEnvironment(
 // An allowlist: never collect errors, file paths, accounts or authorization URLs.
 String testingBuildInfo() =>
     'MoneyTracker $appVersion\nBuild: $buildRevision\n'
-    'Platform: ${kIsWeb ? 'web' : defaultTargetPlatform.name}\n';
+    'Platform: ${kIsWeb ? 'web' : defaultTargetPlatform.name}\n'
+    'Supported data: v$oldestDataFormat–v$currentDataFormat\nUndo database: v$currentJournalFormat\n';
 
 String credentialStoreGuidance(TargetPlatform platform) => switch (platform) {
   TargetPlatform.windows =>
@@ -48,7 +50,7 @@ Future<void> showTestingHelp(BuildContext context) => showDialog<void>(
         const Text(
           'For feedback, copy the build info and describe what you clicked, '
           'what you expected and what happened. The copied info contains '
-          'only the app version, build and platform.\n\n'
+          'only the app version, build, platform and supported format versions.\n\n'
           'Keep keys, account details and browser callback URLs private. '
           'Crop or blur financial details in screenshots.',
         ),

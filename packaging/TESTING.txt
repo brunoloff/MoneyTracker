@@ -20,7 +20,7 @@ Try this sequence:
 Record the FIRST point of friction as well as bugs. For each problem, note the
 steps, expected result and actual result. Testing help is available in setup,
 Preferences, and startup errors. Use Copy build info to identify the package.
-That copies version, build and platform only. Do not send PEM keys, callback
+That copies version, build, platform and supported data-format versions only. Do not send PEM keys, callback
 URLs, application credentials, or raw data files. Blur bank details in images.
 
 If startup fails before a window appears, note the Windows version and exact

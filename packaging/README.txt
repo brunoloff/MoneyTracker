@@ -1,7 +1,9 @@
 MoneyTracker — personal desktop app
 
 For a first test and feedback guidance, see TESTING.txt. Testing help inside the
-app copies the version, build and platform without including financial data.
+app copies the version, build, platform and supported data formats without
+including financial data. Read COMPATIBILITY.txt before replacing an older app;
+COMPATIBILITY.json records the same release's format contract.
 
 Windows: extract the entire ZIP, then run money_tracker.exe. Keep its data and
 DLL folders beside it. If Windows reports a missing VCRUNTIME/MSVCP DLL, install

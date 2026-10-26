@@ -7,13 +7,16 @@ import 'classification.dart';
 import 'compat.dart';
 import 'journal.dart';
 import 'ledger_store.dart';
+import 'data_format.dart';
+import '../data_formats.dart';
 
 /// Copies a stopped legacy installation. The source is never modified.
 Future<Map<String, dynamic>> migrateLegacy(
   String source,
   String destination,
-  Uint8List key,
-) async {
+  Uint8List key, {
+  Uint8List? sourceEncryptionKey,
+}) async {
   final from = Directory(source).resolveSymbolicLinksSync(),
       to = Directory(destination).absolute.path;
   if (from == to || p.isWithin(from, to) || p.isWithin(to, from)) {
@@ -22,6 +25,7 @@ Future<Map<String, dynamic>> migrateLegacy(
   if (!File(p.join(from, 'ledger.json')).existsSync()) {
     invalid('Select the old .private folder containing ledger.json.');
   }
+  final sourceFormat = inspectDataFormat(Directory(from));
   Socket? probe;
   try {
     probe = await Socket.connect(
@@ -56,6 +60,7 @@ Future<Map<String, dynamic>> migrateLegacy(
         .where(
           (f) =>
               tracked(p.basename(f.path)) ||
+              p.basename(f.path) == dataFormatFile ||
               secretFiles.contains(p.basename(f.path)),
         )
         .toList();
@@ -94,7 +99,11 @@ Future<Map<String, dynamic>> migrateLegacy(
         );
       }
     }
-    final candidate = Journal(staging.path, encryptionKey: key);
+    final candidate = Journal(
+      staging.path,
+      encryptionKey: key,
+      importSource: from,
+    );
     Map<String, dynamic> summary;
     try {
       // Replay only the copied journal's pending manifest, then verify projection.
@@ -106,10 +115,20 @@ Future<Map<String, dynamic>> migrateLegacy(
             .length,
         'accounts': snapshot['accounts'].length,
         'undoSteps': candidate.status()['count'],
+        'sourceDataFormat': sourceFormat.version,
+        'dataFormat': currentDataFormat,
       };
       for (final name in secretFiles) {
         if (candidate.file(name).existsSync()) {
-          await candidate.write(name, candidate.read(name, {}));
+          dynamic value;
+          try {
+            value = candidate.read(name, {}, secretKey: sourceEncryptionKey);
+          } catch (_) {
+            invalid(
+              'The original banking credentials could not be unlocked. Import under the original operating-system user with their keyring unlocked. No original data was changed.',
+            );
+          }
+          await candidate.write(name, value);
         }
       }
       final keys = Directory(p.dirname(from))

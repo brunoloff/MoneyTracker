@@ -12,6 +12,7 @@ import 'provider.dart';
 import 'sync.dart';
 import 'xlsx_import.dart';
 import '../special_categories.dart';
+import 'dart:convert';
 
 class ServiceResponse {
   final int status;
@@ -75,6 +76,7 @@ class MoneyTrackerService {
             ...store.snapshot(client: true),
             ...state,
             'undoHistory': journal.status(),
+            'dataFormat': journal.dataFormat,
           });
         }
         if (path == '/api/status') return ServiceResponse(200, {...state});
@@ -84,6 +86,7 @@ class MoneyTrackerService {
             'hasData': journal.file('ledger.json').existsSync(),
             'dataPath': dataPath,
             'callbackError': connections.callbackError,
+            'dataFormat': journal.dataFormat,
           });
         }
         return ServiceResponse(404, {'error': 'Not found'});
@@ -186,6 +189,13 @@ class MoneyTrackerService {
     String path,
     Map<String, dynamic> body,
   ) async {
+    if (path == '/api/data-format/acknowledge') {
+      journal.acknowledgeDataFormat();
+      return ServiceResponse(200, {
+        'ok': true,
+        'dataFormat': journal.dataFormat,
+      });
+    }
     if (path == '/api/setup/credentials') {
       if (encryptionKey == null) {
         invalid(
@@ -218,6 +228,11 @@ class MoneyTrackerService {
           body['path'] as String,
           dataPath,
           encryptionKey!,
+          sourceEncryptionKey: body['sourceEncryptionKey'] == null
+              ? null
+              : Uint8List.fromList(
+                  base64Decode(body['sourceEncryptionKey'] as String),
+                ),
         );
       } finally {
         _initialize();

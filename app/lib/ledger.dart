@@ -155,6 +155,7 @@ class Ledger extends ChangeNotifier {
   double fxTolerancePercent = 10;
   String? historyFrom, syncProgress, syncResult;
   Map<String, dynamic>? historyImport;
+  Map<String, dynamic>? dataFormat;
   List<Map<String, dynamic>> rules = [];
   String period = 'month',
       query = '',
@@ -180,6 +181,7 @@ class Ledger extends ChangeNotifier {
   }
 
   void ingest(Map<String, dynamic> data) {
+    dataFormat = data['dataFormat'] as Map<String, dynamic>?;
     accountRefresh = data['accountRefresh'] as Map<String, dynamic>?;
     undoSupported = data.containsKey('undoHistory');
     undoLimit = data['preferences']?['undoLimit'] ?? 100;

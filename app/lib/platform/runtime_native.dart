@@ -11,15 +11,16 @@ import 'package:money_tracker_core/money_tracker_core.dart';
 import 'runtime_types.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import '../testing_help.dart';
+import 'import_key.dart';
 
 Future<AppRuntime> createRuntime() async {
   final override = Platform.environment['MONEYTRACKER_DATA_DIR'];
   final path =
       override ??
       '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}data';
+  inspectDataFormat(Directory(path));
   const vault = FlutterSecureStorage();
-  final vaultName =
-      'moneytracker.master.${base64Url.encode(utf8.encode(path))}';
+  final vaultName = masterKeyName(path);
   Uint8List key;
   try {
     var value = await vault.read(key: vaultName);
@@ -183,6 +184,16 @@ class _LocalClient extends http.BaseClient {
         body = bytes.isEmpty
             ? <String, dynamic>{}
             : jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (request.url.path == '/api/setup/import' && body['path'] is String) {
+      // Native imports may use a different vault key from the destination.
+      // Resolve it on the UI isolate; send it only over this local isolate port.
+      const vault = FlutterSecureStorage();
+      final value = await findSourceImportKey(
+        body['path'] as String,
+        (key) => vault.read(key: key),
+      );
+      if (value != null) body['sourceEncryptionKey'] = value;
+    }
     final id = ++_id, c = Completer<http.StreamedResponse>();
     _pending[id] = c;
     _send!.send({

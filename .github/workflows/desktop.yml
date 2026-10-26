@@ -46,7 +46,7 @@ jobs:
       - name: Linux archive
         if: runner.os == 'Linux'
         run: |
-          cp packaging/README.txt packaging/TESTING.txt packaging/moneytracker.svg app/build/linux/x64/release/bundle/
+          cp packaging/README.txt packaging/TESTING.txt packaging/COMPATIBILITY.txt packaging/COMPATIBILITY.json packaging/moneytracker.svg app/build/linux/x64/release/bundle/
           tar -C app/build/linux/x64/release/bundle -czf MoneyTracker-linux-x64.tar.gz .
       - name: Windows archive
         if: runner.os == 'Windows'
@@ -54,6 +54,7 @@ jobs:
         run: |
           Copy-Item packaging/README.txt app/build/windows/x64/runner/Release/
           Copy-Item packaging/TESTING.txt app/build/windows/x64/runner/Release/
+          Copy-Item packaging/COMPATIBILITY.txt,packaging/COMPATIBILITY.json app/build/windows/x64/runner/Release/
           Compress-Archive -Path app/build/windows/x64/runner/Release/* -DestinationPath MoneyTracker-windows-x64.zip
       - name: Windows packaged startup smoke test
         if: runner.os == 'Windows'

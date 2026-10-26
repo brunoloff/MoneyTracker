@@ -9,37 +9,11 @@ import 'package:ffi/ffi.dart';
 import 'package:pointycastle/export.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'compat.dart';
+import '../data_formats.dart';
+import 'data_format.dart';
+import 'storage_layout.dart';
+export 'storage_layout.dart';
 
-const trackedFiles = {
-  'ledger.json',
-  'categories.json',
-  'merges.json',
-  'borrowing-groups.json',
-  'tags.json',
-  'taxonomy.json',
-  'profiles.json',
-  'preferences.json',
-  'rules.json',
-  'paypal-observations.json',
-  'paypal-associations.json',
-  'paypal-sync.json',
-  'exchange-rates.json',
-};
-bool tracked(String name) =>
-    trackedFiles.contains(name) ||
-    name.startsWith('raw-') &&
-        name.endsWith('.json') &&
-        p.basename(name) == name &&
-        !name.contains('\\');
-const secretFiles = {
-  'credentials.json',
-  'session.json',
-  'bank-sessions.json',
-  'session-paypal.json',
-  'connection-pending.json',
-  'connection-result.json',
-  'callback-key.json',
-};
 final _stageKey = Object();
 
 /// One owner per data directory. The native service also serializes mutations.
@@ -48,7 +22,9 @@ class Journal {
   final Uint8List? encryptionKey;
   late final Database db;
   RandomAccessFile? _owner;
-  Journal(String path, {this.encryptionKey}) : root = Directory(path) {
+  Journal(String path, {this.encryptionKey, String? importSource})
+    : root = Directory(path) {
+    inspectDataFormat(root);
     root.createSync(recursive: true);
     _private(root.path, directory: true);
     final file = File(p.join(path, 'dart-owner.lock'));
@@ -61,14 +37,52 @@ class Journal {
         'MoneyTracker is already using this data folder. Close the other copy.',
       );
     }
-    db = sqlite3.open(p.join(path, 'undo.sqlite3'));
-    _private(p.join(path, 'undo.sqlite3'));
-    db.execute('PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL;');
-    db.execute(
-      'CREATE TABLE IF NOT EXISTS blobs(id TEXT PRIMARY KEY,data BLOB NOT NULL); CREATE TABLE IF NOT EXISTS actions(id INTEGER PRIMARY KEY AUTOINCREMENT,label TEXT NOT NULL,group_id TEXT,created TEXT NOT NULL,before_map TEXT NOT NULL,after_map TEXT NOT NULL); CREATE TABLE IF NOT EXISTS state(id INTEGER PRIMARY KEY CHECK(id=1),cursor INTEGER NOT NULL,pending TEXT); INSERT OR IGNORE INTO state VALUES(1,0,NULL);',
-    );
-    recover();
+    Database? opened;
+    try {
+      final previous = inspectDataFormat(root);
+      final registration = previous.needsRegistration || importSource != null;
+      final backup = registration && previous.hasData && importSource == null
+          ? backupBeforeFormatChange(root, previous)
+          : null;
+      db = sqlite3.open(p.join(path, 'undo.sqlite3'));
+      opened = db;
+      _private(p.join(path, 'undo.sqlite3'));
+      db.execute('PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL;');
+      db.execute(
+        'CREATE TABLE IF NOT EXISTS blobs(id TEXT PRIMARY KEY,data BLOB NOT NULL); CREATE TABLE IF NOT EXISTS actions(id INTEGER PRIMARY KEY AUTOINCREMENT,label TEXT NOT NULL,group_id TEXT,created TEXT NOT NULL,before_map TEXT NOT NULL,after_map TEXT NOT NULL); CREATE TABLE IF NOT EXISTS state(id INTEGER PRIMARY KEY CHECK(id=1),cursor INTEGER NOT NULL,pending TEXT); INSERT OR IGNORE INTO state VALUES(1,0,NULL);',
+      );
+      recover();
+      if (registration) {
+        db.execute('PRAGMA user_version=$currentJournalFormat');
+        atomic(
+          dataFormatFile,
+          utf8.encode(
+            jsonEncode(
+              registeredDataFormat(
+                previous,
+                backupPath: backup,
+                importSource: importSource,
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      opened?.close();
+      _owner?.closeSync();
+      _owner = null;
+      rethrow;
+    }
   }
+  Map<String, dynamic> get dataFormat => dataFormatInformation(root);
+  void acknowledgeDataFormat() {
+    final metadata = read(dataFormatFile, {}) as Map;
+    final migrations = metadata['migrations'] as List? ?? [];
+    if (migrations.isEmpty) return;
+    migrations.last['acknowledged'] = true;
+    atomic(dataFormatFile, utf8.encode(jsonEncode(metadata)));
+  }
+
   Map<String, List<int>>? get _stage =>
       Zone.current[_stageKey] as Map<String, List<int>>?;
   File file(String name) {
@@ -80,7 +94,7 @@ class Journal {
     return File(p.join(root.path, name));
   }
 
-  dynamic read(String name, dynamic fallback) {
+  dynamic read(String name, dynamic fallback, {Uint8List? secretKey}) {
     final staged = _stage?[name];
     if (staged != null) return jsonDecode(utf8.decode(staged));
     final f = file(name);
@@ -89,7 +103,8 @@ class Journal {
     if (secretFiles.contains(name) &&
         bytes.length > 4 &&
         utf8.decode(bytes.take(4).toList(), allowMalformed: true) == 'MTK1') {
-      if (encryptionKey == null) {
+      final key = secretKey ?? encryptionKey;
+      if (key == null) {
         throw StateError(
           'Unlock the system keyring to open banking credentials.',
         );
@@ -99,7 +114,7 @@ class Journal {
         ..init(
           false,
           AEADParameters(
-            KeyParameter(encryptionKey!),
+            KeyParameter(key),
             128,
             nonce,
             Uint8List.fromList(utf8.encode(name)),
