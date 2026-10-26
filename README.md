@@ -31,6 +31,20 @@ Releases before 1.0.6 do not enforce version checks, so use a compatible complet
 backup if downgrading. Preferences → Data and updates shows your actual format
 and the last upgrade/import receipt.
 
+Overview shows current account balances and the Borrowing and Deposits balance
+above Spent, Income and Net. These two totals cover every account assigned to
+the selected user and all imported dates; payment filters and monthly averages
+do not change them. Account balances use the latest reported amounts and flag
+unavailable balances as a partial total. Borrowing and Deposits sums booked,
+non-ignored advances and repayments, including subcategories and outstanding
+group leftovers once. A negative balance means money is owed to you; positive
+means money is owed by you. Reclassified leftovers leave that balance.
+
+**1.0.7 data format unchanged:** v3 → v3, SQLite undo schema v1 → v1. The new
+totals are computed without new stored fields, financial-file rewrites or a new
+migration. Registered v3 data needs no new backup; existing automatic backup and
+registration still apply to older data. Downgrading to 1.0.6 needs no conversion.
+
 MoneyTracker now runs as a standalone Flutter/Dart application on Linux and
 Windows. Python is not required for the desktop application.
 

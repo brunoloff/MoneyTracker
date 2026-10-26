@@ -531,6 +531,60 @@ class Ledger extends ChangeNotifier {
                 : accountUsers[a['id']] == selectedUser),
       )
       .toList();
+
+  // Current user totals span all accounts and dates, independently of the
+  // period, income display and payment filters. Missing balances stay unknown.
+  Object? _balancesKey;
+  int? _accountBalance;
+  int _unavailableBalanceCount = 0, _borrowingBalance = 0;
+
+  void _ensureBalances() {
+    final key = (
+      accounts,
+      accountUsers,
+      payments,
+      categorySettings,
+      selectedUser,
+    );
+    if (_balancesKey == key) return;
+    _balancesKey = key;
+    final owned = userAccounts;
+    final ids = owned.map((a) => a['id']).toSet();
+    var total = 0, known = 0;
+    for (final a in owned) {
+      final balance = a['balance'];
+      if (balance is int) {
+        total += balance;
+        known++;
+      }
+    }
+    _accountBalance = known == 0 ? null : total;
+    _unavailableBalanceCount = owned.length - known;
+    _borrowingBalance = 0;
+    // The snapshot already replaces grouped members with their leftovers.
+    // Summing it also respects reclassified leftovers and nested groups.
+    for (final p in payments) {
+      if (canGroupBorrowing(p) && p.accountIds.any(ids.contains)) {
+        _borrowingBalance += p.amount;
+      }
+    }
+  }
+
+  int? get accountBalance {
+    _ensureBalances();
+    return _accountBalance;
+  }
+
+  int get unavailableBalanceCount {
+    _ensureBalances();
+    return _unavailableBalanceCount;
+  }
+
+  int get borrowingBalance {
+    _ensureBalances();
+    return _borrowingBalance;
+  }
+
   // Collection snapshots are replaced by ingest; scalar filters form cache keys.
   // Search, table filters and saving notifications do not invalidate aggregates.
   Object? _selectionKey, _summaryKey, _visibleKey, _taxonomyKey;

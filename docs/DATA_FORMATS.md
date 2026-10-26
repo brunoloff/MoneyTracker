@@ -21,6 +21,12 @@ classification file, rate cache, bank-key ciphertext, history row or history
 blob is rewritten as part of this registration. Completing an already pending
 journal recovery remains necessary and behaves as before.
 
+Version 1.0.7 computes Overview account and Borrowing and Deposits balances
+from existing data. **Data format unchanged: v3 → v3; SQLite schema v1 → v1.**
+It adds no stored fields, financial-file rewrites, migrations or new backups
+for registered v3 data. Older-data registration and verified backups continue
+as described below. Data remains compatible with 1.0.6 without conversion.
+
 ## Explicit marker and preflight
 
 The data folder contains `data-format.json`:

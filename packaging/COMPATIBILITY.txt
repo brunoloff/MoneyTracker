@@ -1,21 +1,24 @@
-MoneyTracker 1.0.6+7 — data compatibility
+MoneyTracker 1.0.7+8 — data compatibility
 
-DATA FORMAT: v3. The accounting payload format is unchanged from 1.0.5.
+DATA FORMAT UNCHANGED: v3 -> v3, as in 1.0.6.
 OLDER DATA: v1 and v2 are supported and registered automatically as v3.
 SQLITE: existing undo schema v1; tables, history rows and blobs are unchanged.
 BANK KEYS: MTK1 / AES-GCM encryption is unchanged.
 
-This update adds data-format.json and records SQLite user_version=1. It does
-not rewrite payment files, categories, tags, preferences or encrypted keys.
-An existing installation is copied and verified before registration. The app
-shows the transition and backup location; see Preferences -> Data and updates.
+This update only adds computed Overview balances. It adds no stored fields,
+rewrites no financial files and requires no new migration or backup for
+registered v3 data. SQLite undo schema v1 and history remain unchanged.
+Older unversioned/v1/v2 data still gets a verified backup and automatic v3
+registration. Preferences -> Data and updates shows the receipt and location.
 Imports preserve the original folder and verify the copied data and history.
+
+Downgrading to 1.0.6 needs no data conversion.
 
 Earlier changes:
 - 1.0.4 introduced format v2: incremental sync metadata and Ignored-tag behavior.
 - 1.0.5 introduced format v3: special categories, borrowing groups and leftovers.
 
-DO NOT DOWNGRADE WITHOUT A COMPATIBLE COMPLETE BACKUP. Versions before 1.0.6
+DO NOT DOWNGRADE TO PRE-1.0.6 WITHOUT A COMPATIBLE COMPLETE BACKUP. Those versions
 cannot detect newer formats; earlier apps may show incorrect totals or fail
 when undoing newer operations. Close the app before restoring an entire backup
 to its original data location (restore the backup's data/ contents). Keep the

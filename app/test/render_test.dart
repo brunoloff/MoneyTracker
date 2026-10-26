@@ -34,24 +34,38 @@ void main() {
       final amounts = [-41200, -29800, -23700, -20100, -13600, 250000];
       l.ingest({
         'accounts': [
-          {'id': 'one', 'label': 'Current account'},
+          {'id': 'one', 'label': 'Current account', 'balance': 528400},
+          {'id': 'savings', 'label': 'Savings', 'balance': 1200000},
         ],
         'syncedAt': '2026-09-27T10:00:00Z',
         'preferences': {'period': 'month'},
-        'transactions': List.generate(
-          6,
-          (i) => {
-            'id': '$i',
+        'transactions': [
+          ...List.generate(
+            6,
+            (i) => {
+              'id': '$i',
+              'accountId': 'one',
+              'description': names[i],
+              'amount': amounts[i],
+              'category': cats[i],
+              'date': '2026-09-${24 - i}',
+              'source': 'Example bank',
+              'status': 'BOOK',
+              'reviewed': i == 5,
+            },
+          ),
+          {
+            'id': 'deposit',
             'accountId': 'one',
-            'description': names[i],
-            'amount': amounts[i],
-            'category': cats[i],
-            'date': '2026-09-${24 - i}',
+            'description': 'Refundable deposit',
+            'amount': -15000,
+            'category': borrowingCategory,
+            'date': '2026-06-01',
             'source': 'Example bank',
             'status': 'BOOK',
-            'reviewed': i == 5,
+            'reviewed': true,
           },
-        ),
+        ],
       });
       await tester.pumpWidget(MoneyTrackerApp(ledger: l));
       await tester.pumpAndSettle();

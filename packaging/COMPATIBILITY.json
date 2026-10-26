@@ -1,5 +1,5 @@
 {
-  "appVersion": "1.0.6+7",
+  "appVersion": "1.0.7+8",
   "dataFormat": 3,
   "previousReleaseDataFormat": 3,
   "supportedDataFormats": [1, 2, 3],
@@ -7,7 +7,7 @@
   "sqliteTablesChanged": false,
   "financialFilesRewritten": false,
   "credentialEncryption": "MTK1 AES-GCM (unchanged)",
-  "change": "Accounting payload format unchanged from 1.0.5. Adds explicit data-format.json registration, SQLite user_version=1, verified backups and compatibility checks. Automatically registers older v1/v2 data as v3.",
-  "backup": "Before in-place registration, copy and verify the original data. Imports preserve the original folder.",
-  "downgrade": "Pre-1.0.6 apps cannot enforce version checks. Use a compatible complete pre-upgrade backup before downgrading. Pre-1.0.4 apps do not implement Ignored tags; pre-1.0.5 apps do not implement borrowing groups."
+  "change": "Data format unchanged: v3 to v3; SQLite undo schema v1 to v1. Adds computed account and Borrowing and Deposits balances to Overview. No new stored fields, financial-file rewrites or migrations.",
+  "backup": "No new migration or backup is required for existing registered v3 data. Older unversioned/v1/v2 data still gets verified backup and automatic registration as v3. Imports preserve the original folder.",
+  "downgrade": "Compatible with 1.0.6 without data conversion. Pre-1.0.6 apps cannot enforce version checks; use a compatible complete pre-upgrade backup before downgrading to those versions. Pre-1.0.4 apps do not implement Ignored tags; pre-1.0.5 apps do not implement borrowing groups."
 }

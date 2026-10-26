@@ -296,6 +296,8 @@ class _DashboardState extends State<Dashboard>
             ],
           ),
         ),
+      _balances(),
+      const SizedBox(height: 20),
       Wrap(
         spacing: 20,
         runSpacing: 12,
@@ -470,7 +472,7 @@ class _DashboardState extends State<Dashboard>
       ),
       const SizedBox(height: 6),
       const Text(
-        'Totals use booked payments. Transfers, Ignored, and Borrowing and Deposits are excluded; refunds count as income. Categories are suggestions until you review them.',
+        'Spent, Income, Net and the chart use booked payments, excluding Transfers, Ignored, and Borrowing and Deposits. Refunds count as income. Categories are suggestions until you review them.',
         style: TextStyle(color: muted, fontSize: 12),
       ),
       const SizedBox(height: 24),
@@ -486,6 +488,95 @@ class _DashboardState extends State<Dashboard>
     ),
     child: child,
   );
+
+  Widget _balances() {
+    final count = l.userAccounts.length;
+    final unavailable = l.unavailableBalanceCount;
+    final balance = l.accountBalance;
+    final accounts = count == 1 ? 'account' : 'accounts';
+    final caption = count == 0
+        ? 'No accounts for this user.'
+        : balance == null
+        ? count == 1
+              ? 'Balance unavailable for this account.'
+              : 'Balances unavailable for all $count accounts.'
+        : unavailable > 0
+        ? 'Partial total · $unavailable of $count balances unavailable.'
+        : 'Latest reported ${count == 1 ? 'balance' : 'balances'} · $count $accounts.';
+    return _panel(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'All accounts · All dates',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth < 520
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 32) / 2;
+              Widget metric(
+                String key,
+                String name,
+                String value,
+                String note,
+              ) => SizedBox(
+                key: ValueKey(key),
+                width: width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(color: muted, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      note,
+                      style: const TextStyle(color: muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+              return Wrap(
+                spacing: 32,
+                runSpacing: 20,
+                children: [
+                  metric(
+                    'account-balance',
+                    'Account balances',
+                    balance == null ? '—' : money(balance),
+                    caption,
+                  ),
+                  metric(
+                    'borrowing-balance',
+                    l.categoryName(borrowingCategory),
+                    money(l.borrowingBalance, signed: true),
+                    'Booked payments. Negative: owed to you; positive: owed by you.',
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _incomeControls() => SizedBox(
     width: 140,
     child: Column(

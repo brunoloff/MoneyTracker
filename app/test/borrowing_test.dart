@@ -164,6 +164,7 @@ void main() {
           }),
         )..ingest(service.store.snapshot());
         addTearDown(l.dispose);
+        expect(l.borrowingBalance, 0);
         final boundary = GlobalKey();
         await tester.pumpWidget(
           RepaintBoundary(
@@ -217,6 +218,7 @@ void main() {
         expect(l.borrowingGroups.length, 1);
         expect(l.payments.length, 2);
         expect(l.spent, 0);
+        expect(l.borrowingBalance, 0);
         final parent = l.borrowingGroups.single;
         await click(find.byKey(ValueKey('borrowing-group-${parent.id}')));
         expect(find.text('Leftover −€30.00'), findsOneWidget);
@@ -226,12 +228,14 @@ void main() {
         await click(find.text('Save category'));
         expect(l.spent, 3000);
         expect(l.displayedNet, -3000);
+        expect(l.borrowingBalance, 3000);
         await click(find.byKey(const ValueKey('classify-leftover')));
         await click(
           find.byKey(const ValueKey('choose-category-Borrowing and Deposits')),
         );
         await click(find.text('Save category'));
         expect(l.spent, 0);
+        expect(l.borrowingBalance, 0);
         await click(find.byTooltip('Back'));
         await tester.ensureVisible(
           find.widgetWithText(TextField, 'Group name'),
@@ -247,6 +251,7 @@ void main() {
         await click(find.byKey(const ValueKey('create-borrowing-group')));
         expect(l.borrowingGroups.length, 2);
         expect(l.payments.single.amount, 0);
+        expect(l.borrowingBalance, 0);
         final child = l.borrowingGroups.last;
         await click(find.byKey(ValueKey('borrowing-group-${parent.id}')));
         expect(
@@ -266,6 +271,7 @@ void main() {
         await click(find.widgetWithText(FilledButton, 'Delete group'));
         expect(l.borrowingGroups, isEmpty);
         expect(l.payments.length, 4);
+        expect(l.borrowingBalance, 0);
         expect(tester.takeException(), isNull);
       },
     );
