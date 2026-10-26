@@ -78,3 +78,18 @@ figures agree to the cent.
 [Run 37755956947](https://github.com/brunoloff/MoneyTracker/actions/runs/37755956947)
 built `ece1a7197a826a780fa4d7cb790b7b80297a3a31`; both platforms passed
 289 core tests and 78 Flutter tests, plus the Windows package startup check.
+
+The [1.0.4 sync and review preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.4)
+adds per-account incremental bank/PayPal dates, incremental ECB rates, ordered
+Sync everything, individual ignore/restore, and one-step bulk ignore for remaining
+unmatched/ambiguous PayPal rows. Selected matches and exact/FX suggestions are
+left alone; the server revalidates the batch before applying it. Ignore actions
+are undoable, persist through sync/restart, and exclude tagged payments from totals.
+[Run 40307220921](https://github.com/brunoloff/MoneyTracker/actions/runs/40307220921)
+built `a255b8cbda05e21f1e7afd0675799b8d779e25bd`; both platforms passed
+297 core tests and 85 Flutter tests. Windows passed the extracted-package startup
+and clean shutdown check. The ECB SDMX parser was also checked against a live
+30-currency response. Bank tests used synthetic data; live bank API timing was
+not measured. Provider date-range references:
+[Enable Banking](https://enablebanking.com/docs/api/reference/#get-account-transactions)
+and [ECB Data API](https://data.ecb.europa.eu/help/api/data).
