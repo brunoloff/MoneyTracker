@@ -188,3 +188,48 @@ and private-data exclusions were checked before publication.
 
 - Windows SHA-256: `8bfe6fce25056f237a75f88cd1ec682c60217b5da97fafd9afbb3b8a4d665019`
 - Linux SHA-256: `00d3df171fa7d17b8463ec80012db682fb81fbfd0628822640371d01695f2715`
+
+
+The [1.0.8 rule-pools preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.8)
+adds shared rules and a personal pool for each user. Either pool can match a label
+(OR); personal category rules precede shared rules, and manual categories remain
+highest priority. Matching tags accumulate from both enabled pools. Rules has a
+pool selector and separate per-user enable switches; add-term dialogs use the
+shared label picker and default to the current user, or transaction owner in
+All users. Rule saves, consolidation, priority changes and category transfers
+keep other pools intact. Removing a user leaves their personal rules inactive,
+with Undo available to restore ownership and application. Classification follows
+account ownership, including canonical/linked-owner handling for merged rows,
+and is independent of the selected dashboard view.
+
+**Data format changes: v3 → v4; SQLite undo schema v1 remains unchanged.**
+Optional `rules[].userId` and per-user `useSharedRules`/`usePersonalRules` fields
+require newer rule semantics. The upgrade preserves every existing rule as
+shared without rewriting financial files. Older data is copied and verified
+before v4 registration; v1/v2/v3/v4 imports preserve the original source and
+history. Format metadata remains outside Undo/Redo, and preflight detects scoped
+rules/settings still retained only in history. Archives and in-app notices
+explain this transition and backup location. 1.0.6/1.0.7 refuse v4; downgrade
+requires a complete compatible pre-upgrade backup and the original OS keyring.
+Earlier releases lack guards and must not open v4 data.
+
+[Run 40371014709](https://github.com/brunoloff/MoneyTracker/actions/runs/40371014709)
+built `ef785a4d6375b718c47972c9a275ee901874e006`. Windows and Linux each passed
+345 core tests and 103 Flutter tests (448 total), both analyzers and release
+builds. The extracted Windows package passed window, native-storage,
+format-manifest and clean-shutdown checks. The extracted Linux package passed
+startup with registered v3 data in an isolated display/data/keyring session,
+retained its synthetic financial file, upgraded to v4 and verified every backup
+hash. Rule workflows and upgrade notices were inspected at 390px and 1100px.
+
+A stable private copy of existing data was compared using the previous reader:
+every projected payment, stored financial/credential file and SQLite history
+row/blob was identical after upgrading. Backup hashes and Undo/Redo passed, and
+original live-file hashes remained unchanged. The actual previous v3 reader
+refused v4 before writing any file. No live bank sync or migration was performed
+by Codex. Audit copies stay private. Anonymous public archive and checksum
+downloads matched the tested packages and GitHub digests; native companions,
+compatibility metadata and private-data exclusions were verified.
+
+- Windows SHA-256: `825756fc8bddf175ce406e9760b1562a04b2d907aa6f5e7523931c678b909ebf`
+- Linux SHA-256: `aa39c42cab70777e7e4f14aeefa655ee9660716191af95527d4337a6278b4dbc`
