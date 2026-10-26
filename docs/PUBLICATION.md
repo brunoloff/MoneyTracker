@@ -155,3 +155,36 @@ the tested artifacts, including their compatibility manifests and checksums.
 
 - Windows SHA-256: `03b1d61ea1dfb24c263a76a9f2cf8016fd12a6daa05d01f39c095afabac2c4d7`
 - Linux SHA-256: `416d5e68efb12ba1150385730061dd1d243023de224916aeaaf387034ac060c3`
+
+
+The [1.0.7 balances preview](https://github.com/brunoloff/MoneyTracker/releases/tag/v1.0.7)
+adds account balances and the signed Borrowing and Deposits balance above the
+period summary. Both follow the selected user across all associated accounts;
+period, account/search/category filters and monthly averaging do not affect them.
+Account balances use the latest reported amounts and clearly flag unavailable
+balances and partial totals. The borrowing balance spans all imported dates,
+counts booked non-ignored payments and outstanding group leftovers once, and
+excludes reclassified leftovers. Negative means money owed to the user;
+positive means money owed by the user.
+
+**Data format unchanged: v3 → v3; SQLite undo schema v1 → v1.** There are no new
+stored fields, financial-file rewrites or migrations. Registered v3 data needs
+no new backup. Older unversioned/v1/v2 data retains verified backup and automatic
+registration, and v1/v2/v3 imports remain supported. Data is compatible with
+1.0.6 without conversion; pre-1.0.6 downgrade restrictions still apply. Archive
+COMPATIBILITY.txt/JSON and the format documentation state this explicitly.
+
+[Run 40346786970](https://github.com/brunoloff/MoneyTracker/actions/runs/40346786970)
+built `64e6fea7ccbc967ee6aae03d66ab318eafa3b40b`. Windows and Linux each passed
+330 core tests and 100 Flutter tests, both analyzers and release builds.
+The extracted Windows archive opened its window, initialized native storage,
+validated its format manifest and closed cleanly. The extracted Linux archive
+started in an isolated display/data/keyring session; legacy registration retained
+its synthetic payment file and created the verified backup. Dashboard renders
+were inspected at 390px and 1100px. No live financial data was modified or synced.
+Public anonymous archive and checksum downloads matched the tested packages and
+GitHub asset digests; integrity, native companion files, compatibility metadata
+and private-data exclusions were checked before publication.
+
+- Windows SHA-256: `8bfe6fce25056f237a75f88cd1ec682c60217b5da97fafd9afbb3b8a4d665019`
+- Linux SHA-256: `00d3df171fa7d17b8463ec80012db682fb81fbfd0628822640371d01695f2715`
