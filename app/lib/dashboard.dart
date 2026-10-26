@@ -8,6 +8,7 @@ import 'preferences_page.dart';
 import 'sync_page.dart';
 import 'borrowing_page.dart';
 import 'data_format_panel.dart';
+import 'rule_pool_picker.dart';
 
 const teal = Color(0xff008f84),
     muted = Color(0xff67758c),
@@ -1317,82 +1318,100 @@ class _DashboardState extends State<Dashboard>
 
   Future<void> _addToRule(Payment p) async {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    final categoryRules = {
-      for (final id in l.categoryIds) id: categoryRuleDraft(l, id),
-    };
-    final fullCategories = categoryRules.entries
-        .where((entry) => (entry.value['groups'] as List).length >= 2000)
-        .map((entry) => l.categoryLabel(entry.key))
-        .toList();
-    final otherRules = l.rules
-        .where(
-          (r) =>
-              r['kind'] == 'extra' ||
-              ((r['tags'] as List?)?.isNotEmpty ?? false) ||
-              (r['enabled'] == false && r['kind'] != 'category'),
-        )
-        .toList();
+    var pool = l.defaultRuleUser(p);
     final rule = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Add term to existing rule'),
-        content: SizedBox(
-          width: 500,
-          height: 360,
-          child: ListView(
-            children: [
-              const Text(
-                'Adds a new OR group: Description includes this transaction’s description. Review before saving.',
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Labels',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              CategoryPicker(
-                ledger: l,
-                selected: '',
-                isSelectable: (id) =>
-                    (categoryRules[id]!['groups'] as List).length < 2000,
-                onSelected: (id) => Navigator.pop(dialog, categoryRules[id]),
-              ),
-              if (fullCategories.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Maximum of 2000 OR groups reached: ${fullCategories.join(', ')}',
-                ),
-              ],
-              if (otherRules.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                const Text(
-                  'Other rules',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-              ],
-              for (final rule in otherRules)
-                ListTile(
-                  title: Text(rule['name']),
-                  subtitle: Text(
-                    (rule['groups'] as List).length >= 2000
-                        ? 'Maximum of 2000 OR groups reached'
-                        : '${rule['category'] == null ? 'Tags only' : l.categoryLabel(rule['category'])}${rule['enabled'] == false ? ' · Disabled' : ''}',
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, updatePool) {
+          final categoryRules = {
+            for (final id in l.categoryIds)
+              id: categoryRuleDraft(l, id, userId: pool),
+          };
+          final fullCategories = categoryRules.entries
+              .where((entry) => (entry.value['groups'] as List).length >= 2000)
+              .map((entry) => l.categoryLabel(entry.key))
+              .toList();
+          final otherRules = l
+              .rulesForPool(pool)
+              .where(
+                (r) =>
+                    r['kind'] == 'extra' ||
+                    ((r['tags'] as List?)?.isNotEmpty ?? false) ||
+                    (r['enabled'] == false && r['kind'] != 'category'),
+              )
+              .toList();
+          return AlertDialog(
+            title: const Text('Add term to existing rule'),
+            content: SizedBox(
+              width: 500,
+              height: 360,
+              child: ListView(
+                padding: const EdgeInsets.only(top: 8),
+                children: [
+                  RulePoolPicker(
+                    ledger: l,
+                    userId: pool,
+                    onChanged: (id) => updatePool(() => pool = id),
                   ),
-                  enabled: (rule['groups'] as List).length < 2000,
-                  onTap: (rule['groups'] as List).length >= 2000
-                      ? null
-                      : () => Navigator.pop(dialog, rule),
-                ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Adds a new OR group: Description includes this transaction’s description. Review before saving.',
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Labels',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  CategoryPicker(
+                    ledger: l,
+                    selected: '',
+                    isSelectable: (id) =>
+                        (categoryRules[id]!['groups'] as List).length < 2000,
+                    onSelected: (id) =>
+                        Navigator.pop(dialog, categoryRules[id]),
+                  ),
+                  if (fullCategories.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Maximum of 2000 OR groups reached: ${fullCategories.join(', ')}',
+                    ),
+                  ],
+                  if (otherRules.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Other rules',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  for (final rule in otherRules)
+                    ListTile(
+                      title: Text(rule['name']),
+                      subtitle: Text(
+                        (rule['groups'] as List).length >= 2000
+                            ? 'Maximum of 2000 OR groups reached'
+                            : '${rule['category'] == null ? 'Tags only' : l.categoryLabel(rule['category'])}${rule['enabled'] == false ? ' · Disabled' : ''}',
+                      ),
+                      enabled: (rule['groups'] as List).length < 2000,
+                      onTap: (rule['groups'] as List).length >= 2000
+                          ? null
+                          : () => Navigator.pop(dialog, rule),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog),
+                child: const Text('Cancel'),
+              ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-        ],
+          );
+        },
       ),
     );
     if (rule == null || !mounted) return;
@@ -1476,7 +1495,11 @@ class _DashboardState extends State<Dashboard>
                                   builder: (_) => RuleEditor(
                                     ledger: l,
                                     rule: ruleWithTransactionTerm(
-                                      categoryRuleDraft(l, p.category),
+                                      categoryRuleDraft(
+                                        l,
+                                        p.category,
+                                        userId: l.defaultRuleUser(p),
+                                      ),
                                       p.description,
                                     ),
                                   ),

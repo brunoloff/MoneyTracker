@@ -132,6 +132,26 @@ class MoneyTrackerService {
     }
   }
 
+  Map<String, dynamic> _validatedRule(dynamic input) {
+    final rule = validateRule(
+      input,
+      store.categoryIds,
+      (store.taxonomy()['tags'] as List).map((t) => t['id']).toSet(),
+      users: (store.read('profiles.json', {'users': []})['users'] as List)
+          .map((u) => u['id'])
+          .toSet(),
+    );
+    final previous = maps(
+      store.read('rules.json', []),
+    ).where((r) => r['id'] == rule['id']).firstOrNull;
+    if (previous != null && previous['userId'] != rule['userId']) {
+      invalid(
+        'A saved rule cannot change pools. Create a rule in the other pool instead.',
+      );
+    }
+    return rule;
+  }
+
   Future<Map<String, dynamic>> _read(String path, Map body) async {
     switch (path) {
       case '/api/keepalive':
@@ -146,19 +166,24 @@ class MoneyTrackerService {
           observationId: body['observationId'],
         );
       case '/api/rules/preview':
-        final config = store.taxonomy(),
-            rule = validateRule(
-              body['rule'],
-              store.categoryIds,
-              (config['tags'] as List).map((t) => t['id']).toSet(),
-            )..['enabled'] = true;
+        final rule = _validatedRule(body['rule'])..['enabled'] = true;
         final current = store.snapshot(), ordered = maps(current['rules']);
-        final index = ordered.indexWhere((r) => r['id'] == rule['id']),
-            earlier = ordered.take(index < 0 ? ordered.length : index);
+        final index = ordered.indexWhere((r) => r['id'] == rule['id']);
+        final proposed = rule['kind'] == 'category'
+            ? saveCategory(ordered, rule)
+            : [...ordered];
+        if (rule['kind'] != 'category') {
+          if (index < 0) {
+            proposed.add(rule);
+          } else {
+            proposed[index] = rule;
+          }
+        }
+        final book = RuleBook(proposed, current['profiles'], store.roots);
         return {
           'matches': [
             for (final row in current['transactions'])
-              if (ruleMatches(rule, row, store.roots))
+              if (book.matches(rule, row))
                 {
                   'id': row['id'],
                   'description': row['description'],
@@ -169,12 +194,8 @@ class MoneyTrackerService {
                       ? null
                       : row['reviewed'] == true
                       ? 'Manual category'
-                      : earlier.any(
-                          (r) =>
-                              present(r['category']) &&
-                              ruleMatches(r, row, store.roots),
-                        )
-                      ? 'Earlier rule'
+                      : book.categoryRule(row)?['id'] != rule['id']
+                      ? 'Earlier rule: ${book.categoryRule(row)?['name']}'
                       : null,
                 },
           ],
@@ -321,11 +342,7 @@ class MoneyTrackerService {
         case '/api/connections/finish':
           return await connections.finish(body['callback']);
         case '/api/rules/save':
-          final rule = validateRule(
-            body['rule'],
-            store.categoryIds,
-            (store.taxonomy()['tags'] as List).map((t) => t['id']).toSet(),
-          );
+          final rule = _validatedRule(body['rule']);
           var ordered = maps(store.read('rules.json', []));
           final index = ordered.indexWhere((r) => r['id'] == rule['id']);
           if (rule['kind'] == 'category') {
@@ -335,6 +352,12 @@ class MoneyTrackerService {
             ordered.add(rule);
           } else {
             ordered[index] = rule;
+          }
+          if (ordered.length > 300) invalid('Too many rules');
+          if (ordered.map((r) => r['id']).toSet().length != ordered.length) {
+            invalid(
+              'This rule ID belongs to another label. Edit the rule for the chosen label and pool.',
+            );
           }
           await store.write('rules.json', ordered);
         case '/api/rules/delete':
@@ -349,14 +372,16 @@ class MoneyTrackerService {
           final ordered = maps(store.read('rules.json', [])),
               index = ordered.indexWhere((r) => r['id'] == body['id']),
               delta = body['delta'];
-          if (index < 0 ||
-              delta is! int ||
-              !{-1, 1}.contains(delta) ||
-              index + delta < 0 ||
-              index + delta >= ordered.length) {
+          if (index < 0 || delta is! int || !{-1, 1}.contains(delta)) {
             invalid('Invalid move');
           }
-          final other = index + (delta), old = ordered[index];
+          final pool = [
+            for (var i = 0; i < ordered.length; i++)
+              if (ordered[i]['userId'] == ordered[index]['userId']) i,
+          ];
+          final target = pool.indexOf(index) + delta;
+          if (target < 0 || target >= pool.length) invalid('Invalid move');
+          final other = pool[target], old = ordered[index];
           ordered[index] = ordered[other];
           ordered[other] = old;
           await store.write('rules.json', ordered);
@@ -420,6 +445,21 @@ class MoneyTrackerService {
               existing = store.read('profiles.json', {});
           final config = validateProfiles({
             ...body,
+            'users': body['users'] is List
+                ? [
+                    for (final user in body['users'])
+                      if (user is Map)
+                        {
+                          ...maps(existing['users'] ?? [])
+                                  .where((u) => u['id'] == user['id'])
+                                  .firstOrNull ??
+                              {},
+                          ...user,
+                        }
+                      else
+                        user,
+                  ]
+                : body['users'],
             'accountNicknames':
                 body['accountNicknames'] ?? existing['accountNicknames'] ?? {},
           }, accounts);

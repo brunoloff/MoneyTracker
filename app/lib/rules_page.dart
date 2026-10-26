@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'ledger.dart';
 import 'category_picker.dart';
+import 'rule_pool_picker.dart';
 
 /// Copy the rule so cancelling the editor never changes the saved rule.
 Map<String, dynamic> ruleWithTransactionTerm(
@@ -19,8 +20,13 @@ Map<String, dynamic> ruleWithTransactionTerm(
   return draft;
 }
 
-Map<String, dynamic> categoryRuleDraft(Ledger ledger, String category) {
-  final candidates = ledger.rules
+Map<String, dynamic> categoryRuleDraft(
+  Ledger ledger,
+  String category, {
+  String? userId,
+}) {
+  final candidates = ledger
+      .rulesForPool(userId)
       .where(
         (r) =>
             r['category'] == category &&
@@ -46,6 +52,7 @@ Map<String, dynamic> categoryRuleDraft(Ledger ledger, String category) {
     'category': category,
     'enabled': chosen.isEmpty || chosen.any((r) => r['enabled'] != false),
     'groups': jsonDecode(jsonEncode(groups)),
+    'userId': ?userId,
   };
 }
 
@@ -59,6 +66,36 @@ class RulesPage extends StatefulWidget {
 class _RulesPageState extends State<RulesPage> {
   bool busy = false;
   String? error;
+  String? pool;
+  late String viewUser;
+  @override
+  void initState() {
+    super.initState();
+    viewUser = widget.ledger.selectedUser;
+    pool = widget.ledger.defaultRuleUser();
+  }
+
+  Future<void> setPoolEnabled(String field, bool value) async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    final l = widget.ledger;
+    try {
+      await l.saveProfiles({
+        'users': [
+          for (final u in l.users) {...u, if (u['id'] == pool) field: value},
+        ],
+        'accountUsers': l.accountUsers,
+        'accountNicknames': l.accountNicknames,
+      });
+    } catch (e) {
+      if (mounted) setState(() => error = '$e');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   Future<void> change(String action, Map<String, dynamic> body) async {
     setState(() {
       busy = true;
@@ -76,13 +113,14 @@ class _RulesPageState extends State<RulesPage> {
   void edit([Map<String, dynamic>? rule]) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => RuleEditor(ledger: widget.ledger, rule: rule),
+        builder: (_) =>
+            RuleEditor(ledger: widget.ledger, rule: rule, userId: pool),
       ),
     );
   }
 
   Widget priorityMenu(Map<String, dynamic> rule, {bool removable = false}) {
-    final ordered = widget.ledger.rules;
+    final ordered = widget.ledger.rulesForPool(pool);
     final index = ordered.indexWhere((r) => r['id'] == rule['id']);
     return PopupMenuButton<String>(
       tooltip: 'Rule actions',
@@ -135,9 +173,11 @@ class _RulesPageState extends State<RulesPage> {
 
   Widget categoryRow(Map<String, dynamic> category, {bool child = false}) {
     final l = widget.ledger;
-    final draft = categoryRuleDraft(l, category['id']);
+    final draft = categoryRuleDraft(l, category['id'], userId: pool);
     final count = (draft['groups'] as List).length;
-    final index = l.rules.indexWhere((r) => r['id'] == draft['id']);
+    final index = l
+        .rulesForPool(pool)
+        .indexWhere((r) => r['id'] == draft['id']);
     final hex = category['color'] as String?;
     final color = hex == null
         ? categoryColor(category['id'])
@@ -177,7 +217,14 @@ class _RulesPageState extends State<RulesPage> {
   @override
   Widget build(BuildContext context) {
     final l = widget.ledger;
-    final extras = l.rules
+    if (viewUser != l.selectedUser) {
+      viewUser = l.selectedUser;
+      pool = l.defaultRuleUser();
+    }
+    if (pool != null && !l.users.any((u) => u['id'] == pool)) pool = null;
+    final user = l.users.where((u) => u['id'] == pool).firstOrNull;
+    final extras = l
+        .rulesForPool(pool)
         .where(
           (r) =>
               r['kind'] == 'extra' ||
@@ -204,12 +251,44 @@ class _RulesPageState extends State<RulesPage> {
           ],
         ),
         const SizedBox(height: 8),
+        RulePoolPicker(
+          ledger: l,
+          userId: pool,
+          onChanged: busy ? null : (id) => setState(() => pool = id),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Shared and personal rules combine with OR: either pool can match a label. Personal rules win category conflicts; manual categories take precedence.',
+        ),
+        if (user != null) ...[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text('Apply shared rules for ${user['name']}'),
+            value: user['useSharedRules'] != false,
+            onChanged: busy
+                ? null
+                : (value) => setPoolEnabled('useSharedRules', value),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text('Apply personal rules for ${user['name']}'),
+            value: user['usePersonalRules'] != false,
+            onChanged: busy
+                ? null
+                : (value) => setPoolEnabled('usePersonalRules', value),
+          ),
+        ],
+        if (error != null)
+          Text(error!, style: const TextStyle(color: Colors.red)),
+        const SizedBox(height: 12),
         const Text(
           'Choose a category to edit its conditions. Any OR group can match; conditions within a group are joined by AND.',
         ),
         const SizedBox(height: 8),
         const Text(
-          'Lower priority numbers win category conflicts. Manual categories take precedence. Matching tag rules always add their tags.',
+          'Within this pool, lower priority numbers win category conflicts. Matching tag rules in either enabled pool always add their tags. Rules follow account ownership, independently of the dashboard view.',
         ),
         const SizedBox(height: 16),
         for (final parent in l.orderedCategorySettings.where(
@@ -252,7 +331,7 @@ class _RulesPageState extends State<RulesPage> {
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
-              '${rule['category'] == null ? 'Keep category' : l.categoryLabel(rule['category'])}${(rule['tags'] as List? ?? []).isEmpty ? '' : ' · Tags: ${(rule['tags'] as List).map((id) => l.tagName(id)).join(', ')}'} · ${(rule['groups'] as List).length} OR groups · Priority ${l.rules.indexOf(rule) + 1}',
+              '${rule['category'] == null ? 'Keep category' : l.categoryLabel(rule['category'])}${(rule['tags'] as List? ?? []).isEmpty ? '' : ' · Tags: ${(rule['tags'] as List).map((id) => l.tagName(id)).join(', ')}'} · ${(rule['groups'] as List).length} OR groups · Priority ${l.rulesForPool(pool).indexOf(rule) + 1}',
             ),
             onTap: () => edit({...rule, 'kind': 'extra'}),
             trailing: Row(
@@ -270,8 +349,6 @@ class _RulesPageState extends State<RulesPage> {
               ],
             ),
           ),
-        if (error != null)
-          Text(error!, style: const TextStyle(color: Colors.red)),
       ],
     );
   }
@@ -288,7 +365,8 @@ const operatorLabels = {
 class RuleEditor extends StatefulWidget {
   final Ledger ledger;
   final Map<String, dynamic>? rule;
-  const RuleEditor({super.key, required this.ledger, this.rule});
+  final String? userId;
+  const RuleEditor({super.key, required this.ledger, this.rule, this.userId});
   @override
   State<RuleEditor> createState() => _RuleEditorState();
 }
@@ -322,6 +400,7 @@ class _RuleEditorState extends State<RuleEditor> {
             'groups': [
               [condition()],
             ],
+            if (widget.userId != null) 'userId': widget.userId,
           }
         : jsonDecode(jsonEncode(widget.rule));
   }
@@ -420,6 +499,27 @@ class _RuleEditorState extends State<RuleEditor> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.rule == null)
+                  RulePoolPicker(
+                    ledger: widget.ledger,
+                    userId: draft['userId'],
+                    onChanged: busy
+                        ? null
+                        : (id) => update(() {
+                            if (id == null) {
+                              draft.remove('userId');
+                            } else {
+                              draft['userId'] = id;
+                            }
+                          }),
+                  )
+                else
+                  Text(
+                    'Rule pool: ${widget.ledger.rulePoolName(draft['userId'])}',
+                    key: const ValueKey('editor-rule-pool'),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                const SizedBox(height: 12),
                 if (!categoryRule) ...[
                   TextFormField(
                     initialValue: draft['name'],
@@ -500,7 +600,7 @@ class _RuleEditorState extends State<RuleEditor> {
                   ),
                 ] else
                   Text(
-                    'Assigns transactions to ${widget.ledger.categoryLabel(draft['category'])}. Saving combines its active rules at their earliest priority. Use Preview to check overlaps.',
+                    'Assigns transactions to ${widget.ledger.categoryLabel(draft['category'])}. Saving combines active rules within this pool at their earliest priority. Use Preview to check overlaps.',
                   ),
                 SwitchListTile(
                   dense: true,

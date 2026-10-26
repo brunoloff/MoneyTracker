@@ -1,33 +1,34 @@
-MoneyTracker 1.0.7+8 — data compatibility
+MoneyTracker 1.0.8+9 — data compatibility
 
-DATA FORMAT UNCHANGED: v3 -> v3, as in 1.0.6.
-OLDER DATA: v1 and v2 are supported and registered automatically as v3.
-SQLITE: existing undo schema v1; tables, history rows and blobs are unchanged.
-BANK KEYS: MTK1 / AES-GCM encryption is unchanged.
+DATA FORMAT CHANGES: v3 -> v4. Older v1/v2/v3 data is supported and upgraded
+with a verified complete backup before registration. Imports preserve the source.
+SQLITE UNCHANGED: undo schema v1; existing tables, history rows and blobs remain.
+BANK KEYS UNCHANGED: MTK1 / AES-GCM and the original OS credential-store key.
 
-This update only adds computed Overview balances. It adds no stored fields,
-rewrites no financial files and requires no new migration or backup for
-registered v3 data. SQLite undo schema v1 and history remain unchanged.
-Older unversioned/v1/v2 data still gets a verified backup and automatic v3
-registration. Preferences -> Data and updates shows the receipt and location.
-Imports preserve the original folder and verify the copied data and history.
+v4 adds optional rule userId and per-user useSharedRules/usePersonalRules flags.
+Existing rules remain shared without rewriting rules, transactions, categories,
+tags or credentials. Shared and personal rules combine with OR for each label.
+Personal category rules win conflicts; manual category overrides win above both.
+Matching tags from either enabled pool accumulate. Each user's pools can be
+independently enabled or disabled. Unassigned accounts use shared rules.
 
-Downgrading to 1.0.6 needs no data conversion.
+For a duplicate merged across accounts, the canonical account's user owns the
+rule evaluation. If unassigned, a unique linked user is used; otherwise only
+shared rules apply. Switching dashboard views never changes classification.
+Deleting a user keeps their personal rules inactive; Undo can restore them.
 
-Earlier changes:
-- 1.0.4 introduced format v2: incremental sync metadata and Ignored-tag behavior.
-- 1.0.5 introduced format v3: special categories, borrowing groups and leftovers.
+The upgrade receipt and backup location are shown in Overview and retained in
+Preferences -> Data and updates. Financial file bytes and compressed undo/redo
+history are preserved by the upgrade. The format marker stays outside Undo.
 
-DO NOT DOWNGRADE TO PRE-1.0.6 WITHOUT A COMPATIBLE COMPLETE BACKUP. Those versions
-cannot detect newer formats; earlier apps may show incorrect totals or fail
-when undoing newer operations. Close the app before restoring an entire backup
-to its original data location (restore the backup's data/ contents). Keep the
-same OS user/keyring and original PEM.
-Do not mix individual old JSON files with an unrelated undo database.
+DO NOT OPEN v4 DATA IN OLDER APPS. Versions 1.0.6/1.0.7 refuse v4; earlier
+versions lack guards and can misapply personal rules to everyone. To downgrade,
+close all copies, preserve the current folder, and restore the complete backup's
+data/ contents to the original data location. Keep the same OS user/keyring and
+original PEM. Do not mix individual JSON files with an unrelated undo database.
 
-Unknown newer data/undo versions are refused before writing. If importing a
-native data folder, keep the original OS keyring unlocked; it holds the key
-needed to read its banking credentials. The original folder is never replaced.
+Unknown newer data/undo versions are refused before writing. Importing native
+credentials requires the original unlocked OS keyring; the source is preserved.
 
 Full format and recovery documentation:
 https://github.com/brunoloff/MoneyTracker/blob/main/docs/DATA_FORMATS.md

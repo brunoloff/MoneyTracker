@@ -65,6 +65,28 @@ DataFormatInspection inspectDataFormat(Directory root) {
     );
   }
   var required = 1, journalVersion = 0, history = false;
+  void requireVersion(int value) {
+    if (required < value) required = value;
+  }
+
+  void inspectRuleScopes(String name, dynamic value) {
+    if (name == 'rules.json' &&
+        value is List &&
+        value.any((r) => r is Map && r['userId'] != null)) {
+      requireVersion(4);
+    }
+    if (name == 'profiles.json' &&
+        value is Map &&
+        (value['users'] as List? ?? []).any(
+          (u) =>
+              u is Map &&
+              (u.containsKey('useSharedRules') ||
+                  u.containsKey('usePersonalRules')),
+        )) {
+      requireVersion(4);
+    }
+  }
+
   final groups = File(p.join(root.path, 'borrowing-groups.json'));
   if (groups.existsSync()) required = 3;
   bool specialCategory(dynamic id) =>
@@ -74,6 +96,7 @@ DataFormatInspection inspectDataFormat(Directory root) {
   for (final name in trackedFiles) {
     if (!File(p.join(root.path, name)).existsSync()) continue;
     final value = jsonFile(name);
+    inspectRuleScopes(name, value);
     final listFile = name == 'rules.json' || name == 'borrowing-groups.json';
     if (listFile ? value is! List : value is! Map) {
       throw FormatException(
@@ -85,24 +108,24 @@ DataFormatInspection inspectDataFormat(Directory root) {
       if ((value['transactions'] as List? ?? []).any(
         (r) => specialCategory(r['category']),
       )) {
-        required = 3;
+        requireVersion(3);
       }
     } else if (name == 'categories.json' &&
         value is Map &&
         value.values.any(specialCategory)) {
-      required = 3;
+      requireVersion(3);
     } else if (name == 'taxonomy.json' && value is Map) {
       if ((value['categories'] as List? ?? []).any(
         (c) => specialCategory(c['id']),
       )) {
-        required = 3;
+        requireVersion(3);
       }
       if ((value['tags'] as List? ?? []).any((t) => t['id'] == 'ignored') &&
           required < 2) {
         required = 2;
       }
     } else if (name == 'rules.json' && value is List) {
-      if (value.any((r) => specialCategory(r['category']))) required = 3;
+      if (value.any((r) => specialCategory(r['category']))) requireVersion(3);
       if (value.any((r) => (r['tags'] as List? ?? []).contains('ignored')) &&
           required < 2) {
         required = 2;
@@ -154,6 +177,7 @@ DataFormatInspection inspectDataFormat(Directory root) {
           );
         }
       }
+      final inspectedBlobs = <String>{};
       void checkManifest(dynamic text) {
         if (text == null) return;
         final manifest = jsonDecode(text as String);
@@ -163,7 +187,24 @@ DataFormatInspection inspectDataFormat(Directory root) {
             'Undo history references an unsupported data file. Use a newer compatible app. The folder was not changed.',
           );
         }
-        if (manifest.containsKey('borrowing-groups.json')) required = 3;
+        if (manifest.containsKey('borrowing-groups.json')) requireVersion(3);
+        for (final name in ['rules.json', 'profiles.json']) {
+          final id = manifest[name];
+          if (id == null || !inspectedBlobs.add('$name:$id')) continue;
+          final rows = db.select('SELECT data FROM blobs WHERE id=?', [id]);
+          if (rows.isEmpty) {
+            throw const FormatException(
+              'Undo history contains a missing blob. The folder was not changed.',
+            );
+          }
+          final bytes = gzip.decode(rows.first['data'] as List<int>);
+          if (digest(bytes) != id) {
+            throw const FormatException(
+              'Undo history contains a corrupt blob. The folder was not changed.',
+            );
+          }
+          inspectRuleScopes(name, jsonDecode(utf8.decode(bytes)));
+        }
       }
 
       for (final row in db.select('SELECT before_map,after_map FROM actions')) {

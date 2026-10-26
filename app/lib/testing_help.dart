@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:money_tracker_core/data_formats.dart';
 
-const appVersion = '1.0.7+8';
+const appVersion = '1.0.8+9';
 const buildRevision = String.fromEnvironment(
   'MONEYTRACKER_BUILD_REVISION',
   defaultValue: 'local build',

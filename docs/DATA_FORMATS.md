@@ -1,6 +1,6 @@
 # Data formats and update compatibility
 
-**Current accounting data format: v3. Supported older formats: v1 and v2.**
+**Current accounting data format: v4. Supported older formats: v1, v2 and v3.**
 **SQLite undo schema: v1; its tables and compressed history format are unchanged.**
 **Banking credential encryption: MTK1 / AES-GCM, unchanged.**
 
@@ -13,6 +13,7 @@ JSON successfully does not prove that an older app understands the accounts.
 | v1 | Original Python and native releases through 1.0.3 | Ledger JSON, stable transaction/account IDs, classification overrides, duplicate merges, tags, rules, profiles, preferences, PayPal observations/associations, rates and SQLite undo history. |
 | v2 | 1.0.4 | Adds optional `ledger.syncStarts` and `paypal-sync.accountStarts`; retains the existing rate-cache shape. Gives tag ID `ignored` its exclusion and review behavior. Old apps can read the files but may incorrectly count ignored entries. |
 | v3 | 1.0.5 | Adds `borrowing-groups.json`, virtual leftover identities and group dependencies. Reserves Ignored and Borrowing and Deposits category IDs and excludes them from ordinary accounting. Old readers do not project these groups correctly. |
+| v4 | 1.0.8 | Adds optional `rules[].userId` and per-user `useSharedRules`/`usePersonalRules` settings. Shared and personal rules combine with OR; personal category rules take priority. v3 readers cannot safely interpret scopes. |
 
 Version 1.0.6 adds explicit version registration and checks; it **does not
 introduce another accounting-payload format**. Existing data is registered as
@@ -25,20 +26,52 @@ Version 1.0.7 computes Overview account and Borrowing and Deposits balances
 from existing data. **Data format unchanged: v3 → v3; SQLite schema v1 → v1.**
 It adds no stored fields, financial-file rewrites, migrations or new backups
 for registered v3 data. Older-data registration and verified backups continue
-as described below. Data remains compatible with 1.0.6 without conversion.
+as described below. Data from 1.0.7 remains compatible with 1.0.6 without conversion.
+
+Version 1.0.8 upgrades older data to **v4**, with a verified complete backup
+before the marker changes. Existing rule and financial files stay byte-for-byte
+unchanged: rules without `userId` are shared. No SQLite table/history conversion
+or credential re-encryption is needed for this in-place upgrade. Versions
+1.0.6/1.0.7 refuse v4; earlier versions can misapply personal rules to all users.
+
+## Shared and personal rule contract
+
+`rules.json` remains an ordered list. Missing/null `userId` means shared;
+a stable user ID means personal. Each category and tag condition keeps its
+existing OR-of-AND-groups semantics, including matching one linked source per
+AND group and income-only Salary rules. Shared and personal conditions form
+an **OR union** for each label. Personal category rules run first, then shared
+rules, preserving the saved order within each pool. Manual categories override
+both. Matching tag actions from either enabled pool accumulate independently
+of category conflicts. Paused rules do not apply.
+
+`profiles.users[].useSharedRules` and `usePersonalRules` are optional booleans,
+both defaulting to true. Disabling a pool for one user preserves its rules and
+does not affect other users. Ownership follows `profiles.accountUsers`, not
+the selected dashboard view. Unassigned accounts use shared rules. A merged
+payment follows its canonical account; if unassigned, a unique linked owner
+is used, otherwise only shared rules apply. Virtual leftovers follow their
+chosen account. Deleting a user keeps personal rules dormant; Undo can restore
+that user and their assignments. A different user never inherits those rules.
+
+Saving/consolidating category conditions and reordering priorities affect only
+the chosen pool. Category transfers consolidate each pool separately. Rule
+previews use the same ownership, enablement and priority logic as classification.
+The format marker remains v4 even when all personal rules have been undone;
+preflight also detects scoped rules/settings retained only in history.
 
 ## Explicit marker and preflight
 
 The data folder contains `data-format.json`:
 
 ```json
-{"format":"moneytracker","version":3,"journalVersion":1,"migrations":[]}
+{"format":"moneytracker","version":4,"journalVersion":1,"migrations":[]}
 ```
 
 The marker also records registration dates and migration/backup receipts. It is
 outside financial Undo/Redo: undoing a payment edit cannot downgrade the format.
 An unversioned installation is inspected for the minimum format required by
-its data and borrowing-group references in retained undo/redo history. This
+its data and rule-scope/borrowing-group references in retained undo/redo history. This
 inference identifies a compatible format, not the exact producing app release.
 
 The app rejects unknown newer marker versions, newer SQLite `user_version`
@@ -51,7 +84,7 @@ unchanged. Every released supported format must retain a tested reader/import.
 
 Before upgrading/registering an existing installation, the app holds its owner
 lock and copies the original files into
-`backups/before-data-v3-<timestamp>-<id>/`. This includes the original SQLite
+`backups/before-data-v4-<timestamp>-<id>/`. This includes the original SQLite
 file, financial JSON, encrypted credentials, raw downloads and import audits,
 all under the backup's `data/` subfolder.
 Existing backup folders and the process lock are omitted. Each file is flushed
@@ -79,7 +112,7 @@ recovered from its copied journal on opening.
 Imports preflight the source version, copy known data and the format marker to
 a staging folder, verify every copied file and the projected ledger, and only
 then install the copy. The original folder remains unchanged and is shown as
-the import's recovery source. v1, v2 and v3 imports preserve IDs, extension fields,
+the import's recovery source. v1, v2, v3 and v4 imports preserve IDs, extension fields,
 duplicate links, manual categories/tags, rules, profiles, preferences, PayPal
 state, rates, borrowing groups and undo/redo history.
 
@@ -92,6 +125,12 @@ fails clearly before installing unreadable credentials; the source is retained.
 Keep the original PEM key and the original OS keyring for credential recovery.
 
 ## Downgrading and future releases
+
+**Versions 1.0.6 and 1.0.7 refuse v4 data before writing.** To return to either,
+restore a complete compatible pre-v4 backup to its original location and retain
+the original OS user/keyring. Do not remove/edit the version marker to bypass
+the guard: older code would apply personal rules globally and could rewrite
+scoped rules incorrectly. Keep the upgraded folder separately before restoring.
 
 **Releases before 1.0.6 cannot enforce format-version checks.** In particular,
 1.0.3 does not implement the Ignored tag, and 1.0.4 does not understand borrowing

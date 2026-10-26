@@ -532,6 +532,28 @@ class Ledger extends ChangeNotifier {
       )
       .toList();
 
+  List<Map<String, dynamic>> rulesForPool(String? userId) =>
+      rules.where((r) => r['userId'] == userId).toList();
+
+  String rulePoolName(String? userId) => userId == null
+      ? 'Shared rules (all users)'
+      : '${users.firstWhere((u) => u['id'] == userId, orElse: () => {'name': 'Removed user'})['name']}: personal rules';
+
+  String? defaultRuleUser([Payment? payment]) {
+    final ids = users.map((u) => u['id']).toSet();
+    if (ids.contains(selectedUser)) return selectedUser;
+    if (payment != null) {
+      final primary = accountUsers[payment.accountId];
+      if (ids.contains(primary)) return primary as String;
+      final owners = payment.accountIds
+          .map((id) => accountUsers[id])
+          .where(ids.contains)
+          .toSet();
+      if (owners.length == 1) return owners.single as String;
+    }
+    return null;
+  }
+
   // Current user totals span all accounts and dates, independently of the
   // period, income display and payment filters. Missing balances stay unknown.
   Object? _balancesKey;

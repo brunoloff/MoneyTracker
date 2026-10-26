@@ -51,7 +51,9 @@ class _PreferencesPageState extends State<PreferencesPage> {
     });
     try {
       await l.saveProfiles({
-        'users': users,
+        'users': [
+          for (final u in users) {'id': u['id'], 'name': u['name']},
+        ],
         'accountUsers': owners,
         'accountNicknames': nicknames,
       });
@@ -416,7 +418,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Create user views, then assign each account below. These share the same local data and classification rules.',
+        'Create users, then assign each account below. Users share data and labels, and can have personal rules alongside shared rules. Configure each user’s rule pools on the Rules page.',
       ),
       const SizedBox(height: 16),
       for (final user in users)
@@ -447,7 +449,7 @@ class _PreferencesPageState extends State<PreferencesPage> {
                           builder: (context) => AlertDialog(
                             title: const Text('Remove user?'),
                             content: const Text(
-                              'Their accounts will become unassigned. No payments or bank connections will be deleted.',
+                              'Their accounts will become unassigned. Personal rules are kept but become inactive. No payments or bank connections will be deleted. Undo can restore the user and their rules.',
                             ),
                             actions: [
                               TextButton(

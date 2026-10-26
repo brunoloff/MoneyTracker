@@ -32,15 +32,15 @@ void main() {
         final snapshot = {
           ...data([]),
           'dataFormat': {
-            'version': 3,
+            'version': 4,
             'journalVersion': 1,
             'noticePending': true,
             'lastMigration': {
-              'from': 2,
-              'to': 3,
+              'from': 3,
+              'to': 4,
               'kind': 'registration',
               'backupKind': 'local-copy',
-              'backupLocation': '/example/data/backups/before-data-v3-example',
+              'backupLocation': '/example/data/backups/before-data-v4-example',
               'backupAvailable': true,
             },
           },
@@ -66,10 +66,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Your data is ready: format v3'), findsOneWidget);
-        expect(find.textContaining('v2 to v3'), findsOneWidget);
+        expect(find.text('Your data is ready: format v4'), findsOneWidget);
+        expect(find.textContaining('v3 to v4'), findsOneWidget);
         expect(
-          find.textContaining('Older releases do not enforce format checks'),
+          find.textContaining('some older releases lack version checks'),
           findsOneWidget,
         );
         await tester.ensureVisible(
@@ -93,7 +93,7 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('acknowledge-data-format')));
         await tester.pumpAndSettle();
         expect(acknowledgements, 1);
-        expect(find.text('Your data is ready: format v3'), findsNothing);
+        expect(find.text('Your data is ready: format v4'), findsNothing);
         final preferences = find.byTooltip('Preferences').evaluate().isNotEmpty
             ? find.byTooltip('Preferences')
             : find.text('Preferences').first;
@@ -106,7 +106,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(DataFormatPanel).hitTestable(), findsOneWidget);
         expect(find.text('Data format and updates'), findsOneWidget);
-        expect(find.textContaining('Your data: v3'), findsOneWidget);
+        expect(find.textContaining('Your data: v4'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

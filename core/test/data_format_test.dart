@@ -50,7 +50,7 @@ Future<void> historical(
         if (version >= 2) 'syncStarts': {'a': '2026-09-25'},
       });
       await j.write('categories.json', {
-        if (version == 3) ...{
+        if (version >= 3) ...{
           'loan': borrowingCategory,
           'refund': borrowingCategory,
         },
@@ -64,7 +64,11 @@ Future<void> historical(
       await j.write('taxonomy.json', taxonomy);
       await j.write('profiles.json', {
         'users': [
-          {'id': 'owner', 'name': 'Example'},
+          {
+            'id': 'owner',
+            'name': 'Example',
+            if (version >= 4) 'useSharedRules': true,
+          },
         ],
         'accountUsers': {'a': 'owner'},
       });
@@ -72,7 +76,26 @@ Future<void> historical(
         'period': 'month',
         'extensionPreference': 'retain',
       });
-      await j.write('rules.json', []);
+      await j.write('rules.json', [
+        if (version >= 4)
+          {
+            'id': 'personal',
+            'name': 'Personal food',
+            'userId': 'owner',
+            'kind': 'category',
+            'category': 'Food',
+            'enabled': true,
+            'groups': [
+              [
+                {
+                  'field': 'description',
+                  'operator': 'contains',
+                  'value': 'synthetic personal shop',
+                },
+              ],
+            ],
+          },
+      ]);
       await j.write('paypal-observations.json', {});
       await j.write('paypal-associations.json', {});
       await j.write('paypal-sync.json', {
@@ -86,7 +109,7 @@ Future<void> historical(
         },
       });
       await j.write('raw-synthetic.json', {'unchanged': true});
-      if (version == 3) {
+      if (version >= 3) {
         await j.write('borrowing-groups.json', [
           {
             'id': 'trip',
@@ -114,7 +137,7 @@ Future<void> historical(
     j.close();
   }
   final db = sqlite3.open(p.join(root.path, 'undo.sqlite3'));
-  db.execute('PRAGMA user_version=${marker && version == 3 ? 1 : 0}');
+  db.execute('PRAGMA user_version=${marker && version >= 3 ? 1 : 0}');
   db.close();
   final f = File(p.join(root.path, dataFormatFile));
   if (marker) {
@@ -261,11 +284,11 @@ void main() {
     },
   );
   test(
-    'fresh installation records data v3 and undo v1 without creating history or a backup',
+    'fresh installation records current data format and undo v1 without creating history or a backup',
     () {
       final j = Journal(root.path);
       try {
-        expect(j.dataFormat['version'], 3);
+        expect(j.dataFormat['version'], currentDataFormat);
         expect(j.dataFormat['journalVersion'], 1);
         expect(j.dataFormat['noticePending'], false);
         expect(j.status()['count'], 0);
@@ -275,7 +298,7 @@ void main() {
       }
     },
   );
-  for (final version in [1, 2, 3]) {
+  for (final version in [1, 2, 3, 4]) {
     for (final marker in [false, true]) {
       test(
         'v$version ${marker ? 'declared' : 'unversioned'} upgrades without changing financial files, secrets or history',
@@ -285,7 +308,7 @@ void main() {
           expect(inspectDataFormat(root).version, version);
           var j = Journal(root.path, encryptionKey: oldKey);
           try {
-            expect(j.dataFormat['version'], 3);
+            expect(j.dataFormat['version'], currentDataFormat);
             expect(historyRows(root), rows);
             for (final name in before.keys.where(
               (name) => !['undo.sqlite3', dataFormatFile].contains(name),
@@ -296,7 +319,7 @@ void main() {
                 reason: name,
               );
             }
-            final upgrade = !marker || version < 3;
+            final upgrade = !marker || version < currentDataFormat;
             expect(j.dataFormat['noticePending'], upgrade);
             if (upgrade) {
               final backup = Directory(
@@ -321,8 +344,8 @@ void main() {
               }
             }
             final snapshot = LedgerStore(j).snapshot();
-            expect(snapshot['transactions'].length, version == 3 ? 2 : 3);
-            if (version == 3) {
+            expect(snapshot['transactions'].length, version >= 3 ? 2 : 3);
+            if (version >= 3) {
               expect(
                 snapshot['borrowingGroups'].single['leftover']['amount'],
                 -1000,
@@ -333,7 +356,7 @@ void main() {
               j.read('categories.json', {}).containsKey('ordinary'),
               false,
             );
-            expect(j.dataFormat['version'], 3);
+            expect(j.dataFormat['version'], currentDataFormat);
             j.restore(redo: true);
             expect(j.read('categories.json', {})['ordinary'], 'Travel');
             j.acknowledgeDataFormat();
@@ -356,7 +379,7 @@ void main() {
       );
     }
   }
-  for (final version in [1, 2, 3]) {
+  for (final version in [1, 2, 3, 4]) {
     test(
       'imports unversioned v$version with a different native key and preserves the source',
       () async {
@@ -373,7 +396,7 @@ void main() {
             sourceEncryptionKey: oldKey,
           );
           expect(result['sourceDataFormat'], version);
-          expect(result['dataFormat'], 3);
+          expect(result['dataFormat'], currentDataFormat);
           expect(hashes(root), before);
           expect(historyRows(root), rows);
           final j = Journal(target.path, encryptionKey: newKey);
@@ -402,7 +425,7 @@ void main() {
             j.restore();
             j.restore(redo: true);
             expect(j.read('categories.json', {})['ordinary'], 'Travel');
-            if (version == 3) {
+            if (version >= 3) {
               expect(
                 LedgerStore(
                   j,
@@ -535,7 +558,7 @@ void main() {
           'GET',
           '/api/ledger',
         )).data['dataFormat'];
-        expect(info['version'], 3);
+        expect(info['version'], currentDataFormat);
         expect(info['noticePending'], true);
         final history = service.journal.status();
         expect(

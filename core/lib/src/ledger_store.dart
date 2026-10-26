@@ -190,10 +190,8 @@ class LedgerStore {
         groups = read('merges.json', {}),
         tags = read('tags.json', {});
     final rules = maps(read('rules.json', [])),
-        categoryRules = rules.where(
-          (r) => present(r['category']) && enabled(r),
-        ),
-        tagRules = rules.where((r) => present(r['tags']) && enabled(r));
+        profiles = read('profiles.json', {'users': [], 'accountUsers': {}}),
+        ruleBook = RuleBook(rules, profiles, rootCategories);
     final records = {for (final row in result['transactions']) row['id']: row};
     final children = <dynamic>{
       for (final e in (groups as Map).entries)
@@ -248,15 +246,16 @@ class LedgerStore {
       }.toList()..sort();
       row['classificationRule'] = null;
       row['reviewed'] = false;
-      for (final rule in categoryRules) {
-        if (ruleMatches(rule, row, rootCategories)) {
+      for (final rule in ruleBook.forPayment(row)) {
+        if (present(rule['category']) &&
+            ruleMatches(rule, row, rootCategories)) {
           row['category'] = rule['category'];
           row['classificationRule'] = {'id': rule['id'], 'name': rule['name']};
           break;
         }
       }
-      for (final rule in tagRules) {
-        if (ruleMatches(rule, row, rootCategories)) {
+      for (final rule in ruleBook.forPayment(row)) {
+        if (present(rule['tags']) && ruleMatches(rule, row, rootCategories)) {
           row['tags'] = <dynamic>{...row['tags'], ...rule['tags']}.toList()
             ..sort();
         }
@@ -348,8 +347,9 @@ class LedgerStore {
             'currency': row['currency'],
           },
         ];
-        for (final rule in categoryRules) {
-          if (ruleMatches(rule, row, rootCategories)) {
+        for (final rule in ruleBook.forPayment(row)) {
+          if (present(rule['category']) &&
+              ruleMatches(rule, row, rootCategories)) {
             row['category'] = rule['category'];
             row['classificationRule'] = {
               'id': rule['id'],
@@ -359,8 +359,8 @@ class LedgerStore {
             break;
           }
         }
-        for (final rule in tagRules) {
-          if (ruleMatches(rule, row, rootCategories)) {
+        for (final rule in ruleBook.forPayment(row)) {
+          if (present(rule['tags']) && ruleMatches(rule, row, rootCategories)) {
             row['tags'] = <dynamic>{...row['tags'], ...rule['tags']}.toList()
               ..sort();
           }
@@ -393,7 +393,7 @@ class LedgerStore {
       'taxonomy': config,
       'rules': rules,
       'transactions': payments,
-      'profiles': read('profiles.json', {'users': [], 'accountUsers': {}}),
+      'profiles': profiles,
       'preferences': read('preferences.json', {'period': 'month'}),
       if (borrowingGroups.isNotEmpty) 'borrowingGroups': borrowingGroups,
     });

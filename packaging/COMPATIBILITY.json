@@ -1,13 +1,18 @@
 {
-  "appVersion": "1.0.7+8",
-  "dataFormat": 3,
+  "appVersion": "1.0.8+9",
+  "dataFormat": 4,
   "previousReleaseDataFormat": 3,
-  "supportedDataFormats": [1, 2, 3],
+  "supportedDataFormats": [
+    1,
+    2,
+    3,
+    4
+  ],
   "journalSchema": 1,
   "sqliteTablesChanged": false,
   "financialFilesRewritten": false,
   "credentialEncryption": "MTK1 AES-GCM (unchanged)",
-  "change": "Data format unchanged: v3 to v3; SQLite undo schema v1 to v1. Adds computed account and Borrowing and Deposits balances to Overview. No new stored fields, financial-file rewrites or migrations.",
-  "backup": "No new migration or backup is required for existing registered v3 data. Older unversioned/v1/v2 data still gets verified backup and automatic registration as v3. Imports preserve the original folder.",
-  "downgrade": "Compatible with 1.0.6 without data conversion. Pre-1.0.6 apps cannot enforce version checks; use a compatible complete pre-upgrade backup before downgrading to those versions. Pre-1.0.4 apps do not implement Ignored tags; pre-1.0.5 apps do not implement borrowing groups."
+  "change": "Data format v3 to v4: optional rules[].userId and users[].useSharedRules/usePersonalRules. Shared and personal label rules combine with OR; personal category rules take priority. Existing rules remain shared without rewriting their files. SQLite schema v1 and MTK1 encryption stay unchanged.",
+  "backup": "Before upgrading v1/v2/v3 or unversioned data to v4, copy and verify the complete original data. Imports preserve the original source and verify copied files/history. No transaction conversion or existing rule rewrite is required.",
+  "downgrade": "Versions 1.0.6 and 1.0.7 refuse v4 data. To downgrade, close the app and restore a complete compatible pre-upgrade backup with its original OS keyring. Earlier versions lack guards and must never open upgraded data."
 }

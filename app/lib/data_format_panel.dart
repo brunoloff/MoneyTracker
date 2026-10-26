@@ -54,7 +54,7 @@ class DataFormatPanel extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             const Text(
-              'Compatibility history: 1.0.4 introduced the Ignored tag (v2); 1.0.5 introduced special categories and borrowing groups (v3). Version 1.0.6 records those versions explicitly. The SQLite tables and banking-key encryption format are unchanged.',
+              'Compatibility history: 1.0.4 introduced the Ignored tag (v2); 1.0.5 introduced special categories and borrowing groups (v3); 1.0.6 added explicit version checks. Version 1.0.8 adds shared and personal rule pools (v4); existing rules stay shared. The SQLite tables and banking-key encryption format are unchanged.',
             ),
             const SizedBox(height: 12),
             const Text(downgradeGuidance),

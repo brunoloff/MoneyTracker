@@ -31,10 +31,20 @@ Never invalid(String message) => throw FormatException(message);
 Map<String, dynamic> validateRule(
   dynamic input,
   Set<dynamic> categories,
-  Set<dynamic> tags,
-) {
+  Set<dynamic> tags, {
+  Set<dynamic>? users,
+}) {
   if (input is! Map) invalid('Rule must be an object');
   final rule = Map<String, dynamic>.from(input);
+  final userId = rule['userId'];
+  if (userId != null &&
+      (userId is! String ||
+          userId.isEmpty ||
+          userId.length > 80 ||
+          {'all', 'unassigned'}.contains(userId) ||
+          users != null && !users.contains(userId))) {
+    invalid('Choose an existing user for a personal rule');
+  }
   final name = rule['name'],
       groups = rule['groups'],
       tagIds = rule['tags'] ?? [],
@@ -98,6 +108,7 @@ Map<String, dynamic> validateRule(
     'category': rule['category'],
     'enabled': rule['enabled'] ?? true,
     'groups': clean,
+    'userId': ?userId,
   };
   if ((tagIds).isNotEmpty) result['tags'] = tagIds.toSet().toList()..sort();
   if (rule['kind'] == 'extra') result['kind'] = 'extra';
@@ -149,14 +160,73 @@ bool ruleMatches(Map rule, Map payment, [Map<dynamic, dynamic>? roots]) {
   return false;
 }
 
+/// Shared and personal conditions form a union. Personal category rules take
+/// priority; matching tags from either enabled pool accumulate as before.
+/// Ownership is independent of the dashboard's selected user. For a merged
+/// payment its canonical account owns it; an unassigned canonical account uses
+/// a unique linked owner, if there is one. Conflicting linked owners stay shared.
+class RuleBook {
+  final List<Map<String, dynamic>> ordered;
+  final Map<dynamic, dynamic> roots;
+  final Map owners;
+  late final Map<dynamic, Map<String, dynamic>> users;
+  late final List<Map<String, dynamic>> shared;
+  late final Map<dynamic, List<Map<String, dynamic>>> personal;
+  final Map<String?, List<Map<String, dynamic>>> _pools = {};
+
+  RuleBook(this.ordered, Map profiles, this.roots)
+    : owners = profiles['accountUsers'] as Map? ?? {} {
+    users = {for (final u in maps(profiles['users'] ?? [])) u['id']: u};
+    shared = ordered.where((r) => r['userId'] == null && enabled(r)).toList();
+    personal = {};
+    for (final r in ordered) {
+      if (r['userId'] != null && enabled(r)) {
+        personal.putIfAbsent(r['userId'], () => []).add(r);
+      }
+    }
+  }
+
+  String? owner(Map payment) {
+    final primary = owners[payment['accountId']];
+    if (users.containsKey(primary)) return primary as String;
+    final linked = (payment['accountIds'] as List? ?? [])
+        .map((id) => owners[id])
+        .where(users.containsKey)
+        .toSet();
+    return linked.length == 1 ? linked.single as String : null;
+  }
+
+  List<Map<String, dynamic>> forPayment(Map payment) {
+    final id = owner(payment);
+    return _pools.putIfAbsent(
+      id,
+      () => [
+        if (id != null && users[id]?['usePersonalRules'] != false)
+          ...personal[id] ?? [],
+        if (id == null || users[id]?['useSharedRules'] != false) ...shared,
+      ],
+    );
+  }
+
+  bool matches(Map rule, Map payment) =>
+      forPayment(payment).any((r) => r['id'] == rule['id']) &&
+      ruleMatches(rule, payment, roots);
+
+  Map<String, dynamic>? categoryRule(Map payment) => forPayment(payment)
+      .where((r) => present(r['category']) && ruleMatches(r, payment, roots))
+      .firstOrNull;
+}
+
 Map<String, dynamic> categoryDraft(
   String category,
   String name,
-  List<Map<String, dynamic>> ordered,
-) {
+  List<Map<String, dynamic>> ordered, {
+  String? userId,
+}) {
   final candidates = ordered
       .where(
         (r) =>
+            r['userId'] == userId &&
             r['category'] == category &&
             r['kind'] != 'extra' &&
             !present(r['tags']) &&
@@ -173,13 +243,16 @@ Map<String, dynamic> categoryDraft(
   }
   return {
     'id': candidates.isEmpty
-        ? 'category-${const Uuid().v5(Namespace.url.value, category)}'
+        ? userId == null
+              ? 'category-${const Uuid().v5(Namespace.url.value, category)}'
+              : 'category-user-${const Uuid().v5(Namespace.url.value, pythonJson([userId, category]))}'
         : candidates.first['id'],
     'name': name,
     'category': category,
     'kind': 'category',
     'enabled': candidates.isEmpty || active,
     'groups': groups,
+    'userId': ?userId,
   };
 }
 
@@ -191,6 +264,7 @@ List<Map<String, dynamic>> saveCategory(
   var inserted = false;
   for (final old in ordered) {
     final same =
+        old['userId'] == rule['userId'] &&
         old['category'] == rule['category'] &&
         old['kind'] != 'extra' &&
         !present(old['tags']);
@@ -224,20 +298,32 @@ List<Map<String, dynamic>> transferCategories(
         if (!enabled(rule)) rule['kind'] = 'extra';
       }
     }
-    final active = result
-        .where(
-          (r) =>
-              r['category'] == e.value &&
-              r['kind'] != 'extra' &&
-              !present(r['tags']) &&
-              enabled(r),
-        )
-        .toList();
-    if (active.isNotEmpty) {
-      result = saveCategory(
-        result,
-        categoryDraft(e.value as String, names[e.value] as String, active),
-      );
+    final pools = result
+        .where((r) => r['category'] == e.value)
+        .map((r) => r['userId'] as String?)
+        .toSet();
+    for (final userId in pools) {
+      final active = result
+          .where(
+            (r) =>
+                r['userId'] == userId &&
+                r['category'] == e.value &&
+                r['kind'] != 'extra' &&
+                !present(r['tags']) &&
+                enabled(r),
+          )
+          .toList();
+      if (active.isNotEmpty) {
+        result = saveCategory(
+          result,
+          categoryDraft(
+            e.value as String,
+            names[e.value] as String,
+            active,
+            userId: userId,
+          ),
+        );
+      }
     }
   }
   return result;
@@ -354,7 +440,17 @@ Map<String, dynamic> validateProfiles(Map body, Set<dynamic> accounts) {
         !names.add(casefold(name.trim()))) {
       invalid('Use unique, non-empty user names (up to 60 characters)');
     }
-    clean.add({'id': id, 'name': name.trim()});
+    for (final field in ['useSharedRules', 'usePersonalRules']) {
+      if (u.containsKey(field) && u[field] is! bool) {
+        invalid('Invalid rule-pool setting');
+      }
+    }
+    clean.add({
+      'id': id,
+      'name': name.trim(),
+      for (final field in ['useSharedRules', 'usePersonalRules'])
+        if (u.containsKey(field)) field: u[field],
+    });
   }
   if ((owners).entries.any(
     (e) => !accounts.contains(e.key) || !ids.contains(e.value),

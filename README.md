@@ -22,14 +22,15 @@ Arrange each person's own Enable Banking application and key before meeting.
 
 ## Run the desktop app
 
-**Data compatibility:** current accounting format **v3**, with automatic import
-of **v1/v2/v3**; SQLite undo schema **v1**, tables and banking-key encryption
-unchanged. Version 1.0.6 adds explicit registration and verified backups without
-rewriting financial files. Every archive includes `COMPATIBILITY.txt` and
-`COMPATIBILITY.json`; see [formats, upgrade and recovery](docs/DATA_FORMATS.md).
-Releases before 1.0.6 do not enforce version checks, so use a compatible complete
-backup if downgrading. Preferences → Data and updates shows your actual format
-and the last upgrade/import receipt.
+**Data format changes in 1.0.8: v3 → v4**, with automatic import of **v1/v2/v3/v4**.
+Before upgrading older data, the app makes and verifies a complete backup.
+Existing financial files and rule bytes are preserved; old rules remain shared.
+SQLite undo schema **v1**, history and banking-key encryption are unchanged.
+Versions 1.0.6/1.0.7 refuse v4; restore a complete compatible pre-upgrade backup
+to downgrade. Earlier releases lack guards and must not open upgraded data.
+Each archive includes `COMPATIBILITY.txt` and `COMPATIBILITY.json`; see
+[formats, upgrade and recovery](docs/DATA_FORMATS.md). Preferences → Data and
+updates retains your format transition and backup receipt.
 
 Overview shows current account balances and the Borrowing and Deposits balance
 above Spent, Income and Net. These two totals cover every account assigned to
@@ -40,10 +41,17 @@ non-ignored advances and repayments, including subcategories and outstanding
 group leftovers once. A negative balance means money is owed to you; positive
 means money is owed by you. Reclassified leftovers leave that balance.
 
-**1.0.7 data format unchanged:** v3 → v3, SQLite undo schema v1 → v1. The new
-totals are computed without new stored fields, financial-file rewrites or a new
-migration. Registered v3 data needs no new backup; existing automatic backup and
-registration still apply to older data. Downgrading to 1.0.6 needs no conversion.
+Rules has a shared pool and a personal pool for each user. **Either pool can
+match a label (OR).** Personal category rules take priority over shared rules,
+and manual categories take priority over both. Matching tags from either pool
+accumulate. Select a user’s pool on the Rules page to configure conditions and
+independently enable shared/personal rules for that user. Rule priority and
+category consolidation stay within each pool. Add-term dialogs reuse the shared
+label picker and default to the current user’s pool, or the transaction owner
+when viewing all users. The selected pool is shown before editing and saving.
+Accounts without an owner use shared rules. For a merged payment, its canonical
+account determines the user; a unique linked owner is used as a fallback. A
+deleted user’s personal rules remain stored but inactive; Undo restores them.
 
 MoneyTracker now runs as a standalone Flutter/Dart application on Linux and
 Windows. Python is not required for the desktop application.
