@@ -187,4 +187,84 @@ void main() {
       l.dispose();
     });
   }
+  for (final width in [390.0, 1100.0]) {
+    testWidgets('bulk ignore preserves chosen pairs at $width', (tester) async {
+      tester.view.physicalSize = Size(width, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final ignored = <String>{};
+      List<dynamic>? sent;
+      final l = Ledger(
+        client: MockClient((r) async {
+          if (r.url.path == '/api/paypal/ignore-unmatched') {
+            sent = jsonDecode(r.body)['observationIds'];
+            ignored.addAll(sent!.cast<String>());
+            return http.Response('{}', 200);
+          }
+          if (r.method == 'GET') {
+            return http.Response(jsonEncode(data([])), 200);
+          }
+          Map<String, dynamic> observation(String id) => {
+            'id': id,
+            'description': id,
+            'date': '2026-10-20',
+            'amount': -100,
+            'currency': 'EUR',
+          };
+          return http.Response(
+            jsonEncode({
+              'rows': [
+                for (final id in ['exact', 'fx', 'manual', 'one', 'two'])
+                  if (!ignored.contains(id))
+                    {
+                      'rule': ['exact', 'fx'].contains(id) ? id : 'unmatched',
+                      'observation': observation(id),
+                      'candidates': [
+                        if (['exact', 'fx', 'manual'].contains(id))
+                          {
+                            ...observation('bank-$id'),
+                            'rule': id == 'manual' ? 'nearby' : id,
+                          },
+                      ],
+                    },
+              ],
+              'ignored': [for (final id in ignored) observation(id)],
+            }),
+            200,
+          );
+        }),
+      );
+      l.ingest(data([]));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(child: SyncPage(ledger: l)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Review pending (5)'));
+      await tester.tap(find.text('Review pending (5)'));
+      await tester.pumpAndSettle();
+      final manual = find.byKey(const ValueKey('paypal-choice-manual'));
+      await tester.ensureVisible(manual);
+      await tester.tap(manual);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('bank-manual'));
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm 3 selected'), findsOneWidget);
+      final bulk = find.byKey(const ValueKey('ignore-all-unmatched'));
+      await tester.ensureVisible(bulk);
+      await tester.tap(bulk);
+      await tester.pumpAndSettle();
+      expect(sent, ['one', 'two']);
+      expect(find.text('Confirm 3 selected'), findsOneWidget);
+      expect(find.text('Ignored (2)'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ignore-all-unmatched')), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      l.dispose();
+    });
+  }
 }

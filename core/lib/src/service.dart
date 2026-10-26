@@ -284,6 +284,7 @@ class MoneyTrackerService {
       '/api/category': 'Change payment category',
       '/api/paypal/confirm': 'Confirm PayPal associations',
       '/api/paypal/ignore': 'Change ignored PayPal payment',
+      '/api/paypal/ignore-unmatched': 'Ignore unmatched PayPal payments',
       '/api/merge': 'Merge payments',
       '/api/unmerge': 'Unmerge payments',
       '/api/profiles': 'Edit users and accounts',
@@ -384,6 +385,8 @@ class MoneyTrackerService {
           await paypal.confirm(body['pairs']);
         case '/api/paypal/ignore':
           await paypal.ignore(body['observationId'], body['ignored']);
+        case '/api/paypal/ignore-unmatched':
+          await paypal.ignoreUnmatched(body['observationIds']);
         case '/api/merge':
           await store.merge(body['primaryId'], body['secondaryId']);
         case '/api/unmerge':

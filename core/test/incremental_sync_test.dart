@@ -372,4 +372,54 @@ void main() {
       );
     },
   );
+  test(
+    'bulk ignore is atomic, refuses changed matches and has one Undo step',
+    () async {
+      open();
+      await service.store.write('ledger.json', {
+        'accounts': [
+          {'id': 'bank', 'label': 'Bank'},
+        ],
+        'transactions': [
+          {
+            ...observation('bank-row', 'bank', '2026-10-20'),
+            'description': 'PAYPAL',
+            'category': 'Food',
+            'amount': -100,
+          },
+        ],
+      });
+      await service.store.write('paypal-observations.json', {
+        'exact': {
+          ...observation('exact', 'paypal', '2026-10-20'),
+          'amount': -100,
+        },
+        'one': {...observation('one', 'paypal', '2026-10-20'), 'amount': -200},
+        'two': {...observation('two', 'paypal', '2026-10-20'), 'amount': -300},
+      });
+      expect(
+        (await service.request('POST', '/api/paypal/ignore-unmatched', {
+          'observationIds': ['one', 'exact'],
+        })).status,
+        400,
+      );
+      expect(service.store.read('tags.json', {}), isEmpty);
+      final before = service.journal.status()['count'] as int;
+      expect(
+        (await service.request('POST', '/api/paypal/ignore-unmatched', {
+          'observationIds': ['one', 'two'],
+        })).status,
+        200,
+      );
+      expect(
+        service.paypal.review()['rows'].single['observation']['id'],
+        'exact',
+      );
+      expect(service.paypal.review()['ignored'], hasLength(2));
+      expect(service.journal.status()['count'], before + 1);
+      await service.request('POST', '/api/undo');
+      expect(service.paypal.review()['rows'], hasLength(3));
+      expect(service.paypal.review()['ignored'], isEmpty);
+    },
+  );
 }

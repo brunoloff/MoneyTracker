@@ -102,7 +102,24 @@ class _SyncPageState extends State<SyncPage> {
     }
   }
 
-  Future<void> setIgnored(String id, bool ignored) async {
+  Future<void> setIgnored(String id, bool ignored) => changeIgnored(
+    '/api/paypal/ignore',
+    {'observationId': id, 'ignored': ignored},
+  );
+
+  List<String> get unmatchedIds => [
+    for (final row in rows)
+      if (row['rule'] == 'unmatched' &&
+          !choices.containsKey(row['observation']['id']))
+        row['observation']['id'] as String,
+  ];
+
+  Future<void> ignoreRemaining() => changeIgnored(
+    '/api/paypal/ignore-unmatched',
+    {'observationIds': unmatchedIds},
+  );
+
+  Future<void> changeIgnored(String path, Map<String, dynamic> body) async {
     setState(() {
       busy = true;
       error = null;
@@ -110,10 +127,7 @@ class _SyncPageState extends State<SyncPage> {
     l.saving = true;
     l.changed();
     try {
-      await l.post('/api/paypal/ignore', {
-        'observationId': id,
-        'ignored': ignored,
-      });
+      await l.post(path, body);
       await l.load();
       await refresh(preserveChoices: true);
     } catch (e) {
@@ -309,6 +323,7 @@ class _SyncPageState extends State<SyncPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Checkbox(
+                key: ValueKey('paypal-choice-${o['id']}'),
                 value: selected != null,
                 onChanged: busy || l.syncing
                     ? null
@@ -425,7 +440,7 @@ class _SyncPageState extends State<SyncPage> {
           label: const Text('Sync everything'),
         ),
         const Text(
-          'Exchange rates → bank statements → PayPal',
+          'Exchange rates, then bank statements, then PayPal',
           style: TextStyle(fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -627,6 +642,19 @@ class _SyncPageState extends State<SyncPage> {
           onPressed: busy || l.syncing || choices.isEmpty ? null : confirm,
           child: Text('Confirm ${choices.length} selected'),
         ),
+        if (unmatchedIds.isNotEmpty)
+          Tooltip(
+            message:
+                'Leaves selected matches and exact/FX suggestions alone. One Undo restores this entire action.',
+            child: TextButton.icon(
+              key: const ValueKey('ignore-all-unmatched'),
+              onPressed: busy || l.syncing ? null : ignoreRemaining,
+              icon: const Icon(Icons.visibility_off_outlined),
+              label: Text(
+                'Ignore all unmatched / ambiguous (${unmatchedIds.length})',
+              ),
+            ),
+          ),
         if (ignoredRows.isNotEmpty)
           ExpansionTile(
             key: const ValueKey('ignored-paypal-list'),

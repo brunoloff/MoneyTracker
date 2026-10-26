@@ -450,4 +450,25 @@ class Paypal {
     tags[id] = values.toList()..sort();
     await store.write('tags.json', tags);
   }
+
+  Future<void> ignoreUnmatched(dynamic ids) async {
+    if (ids is! List || ids.isEmpty || ids.any((id) => id is! String)) {
+      invalid('Choose at least one unmatched PayPal payment');
+    }
+    final available = {
+      for (final row in review()['rows'])
+        if (row['rule'] == 'unmatched') row['observation']['id'],
+    };
+    if (!ids.every(available.contains)) {
+      invalid(
+        'Some payments now have suggested matches or are no longer pending; refresh the review',
+      );
+    }
+    await store.ensureIgnoredTag();
+    final tags = store.read('tags.json', {});
+    for (final id in ids) {
+      tags[id] = <dynamic>{...tags[id] ?? [], 'ignored'}.toList()..sort();
+    }
+    await store.write('tags.json', tags);
+  }
 }
